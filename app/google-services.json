@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1044071473468",
+    "project_id": "nectar-96727",
+    "storage_bucket": "nectar-96727.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1044071473468:android:72f3b62f8520b4a6e1be39",
+        "android_client_info": {
+          "package_name": "com.morales.nectar"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1044071473468-294bg9h1q1her9hfl92ms9nkfp03pavp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnh2DObSDQF2sDGeN7W-2jlUN7rgBg61Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1044071473468-294bg9h1q1her9hfl92ms9nkfp03pavp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

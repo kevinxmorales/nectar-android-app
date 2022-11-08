@@ -1,8 +1,5 @@
 package com.morales.nectar.screens.plants
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,15 +54,6 @@ fun MyPlantsScreen(
     val postsLoading = vm.refreshPostsProgress.value
     val posts = vm.posts.value
     val numFollowers = vm.numFollowers.value
-    val newPostImageLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let {
-            val encoded = Uri.encode(uri.toString())
-            val route = DestinationScreen.NewPost.createRoute(encoded)
-            navController.navigate(route)
-        }
-    }
 
     Column {
         Column(modifier = Modifier.weight(1f)) {

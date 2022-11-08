@@ -23,6 +23,8 @@ import com.morales.nectar.composables.CommonImage
 import com.morales.nectar.composables.ProgressSpinner
 import com.morales.nectar.data.remote.requests.PlantData
 import com.morales.nectar.data.remote.responses.CareLogEntry
+import com.morales.nectar.navigation.NavParam
+import com.morales.nectar.navigation.navigateTo
 import com.morales.nectar.screens.NectarViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -30,28 +32,54 @@ import java.util.*
 @Composable
 fun SinglePlantScreen(
     navController: NavController,
-    plant: PlantData,
+    p: PlantData,
     vm: NectarViewModel,
 ) {
+    val currentPlant = vm.currentPlant.value
     val careLogEntries = vm.careLogEntries.value
     val scrollState = rememberScrollState()
 
     LaunchedEffect(key1 = Unit) {
-        vm.getCareLogEntries(plant.plantId)
+        vm.fetchPlantById(p.plantId)
+        vm.getCareLogEntries(p.plantId)
     }
 
-    plant.userId?.let {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
+    if (currentPlant != null) {
+        currentPlant.userId?.let {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
 
-        ) {
-            Text(text = "Back", modifier = Modifier.clickable { navController.popBackStack() })
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp)
+                ) {
+                    Text(
+                        text = "Back",
+                        modifier = Modifier.clickable {
+                            navController.popBackStack()
+                            vm.currentPlant.value = null
+                        })
 
-            CommonDivider()
+                    Text(
+                        text = "Edit",
+                        modifier = Modifier.clickable {
+                            navigateTo(
+                                navController,
+                                DestinationScreen.EditPlantScreen,
+                                NavParam("plant", currentPlant)
+                            )
+                        }
+                    )
+                }
+                CommonDivider()
 
-            SinglePostDisplay(navController, vm, plant, careLogEntries.size, scrollState)
+                SinglePostDisplay(navController, vm, currentPlant, careLogEntries.size, scrollState)
+            }
         }
     }
 }
@@ -119,12 +147,14 @@ fun SinglePostDisplay(
                     Modifier
                         .fillMaxWidth()
                         .defaultMinSize(minHeight = 150.dp)
+                
                 CommonImage(
                     contentDescription = "a picture of the plant",
                     contentScale = ContentScale.FillWidth,
                     data = post.images?.get(0),
                     modifier = modifier,
                 )
+
             }
             Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (!post.likes.isNullOrEmpty()) {

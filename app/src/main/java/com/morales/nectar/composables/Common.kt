@@ -121,3 +121,24 @@ fun LikeAnimation(like: Boolean = true) {
     )
     sizeState = LikeIconSize.LARGE
 }
+
+@Composable
+fun PlantImage(imageUri: String) {
+    val modifier = Modifier
+        .height(150.dp)
+        .width(150.dp)
+        .padding(8.dp)
+    if (imageUri.isNotEmpty()) {
+        CommonImage(
+            data = imageUri,
+            contentDescription = "An image you selected for your plant",
+            modifier = modifier
+        )
+    } else {
+        Image(
+            painter = painterResource(id = R.drawable.placeholder),
+            contentDescription = "Placeholder image",
+            modifier = modifier
+        )
+    }
+}

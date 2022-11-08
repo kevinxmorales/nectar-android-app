@@ -43,7 +43,7 @@ sealed class DestinationScreen(val route: String) {
     }
 
     object CreateNewPlantScreen : DestinationScreen("addPlant")
-
+    object EditPlantScreen : DestinationScreen("editPlant")
     object SinglePlant : DestinationScreen("singlePlant")
     object CareLogEntries : DestinationScreen("care/{plantId}") {
         fun createRoute(plantId: String) = "care/$plantId"
@@ -75,10 +75,17 @@ fun NectarApp() {
         composable(DestinationScreen.Profile.route) {
             ProfileScreen(navController = navController, vm = vm)
         }
-        composable(DestinationScreen.NewPost.route) { navBackStackEntry ->
-            val imageUri = navBackStackEntry.arguments?.getString("imageUri")
-            imageUri?.let { encodedUri ->
-                NewPostScreen(navController = navController, encodedUri = encodedUri, vm = vm)
+        composable(DestinationScreen.EditPlantScreen.route) {
+            val plantData = navController
+                .previousBackStackEntry
+                ?.arguments
+                ?.getParcelable<PlantData>("plant")
+            plantData?.let {
+                EditPlantScreen(
+                    navController = navController,
+                    plant = plantData,
+                    vm = vm
+                )
             }
         }
         composable(DestinationScreen.SinglePlant.route) {
@@ -89,7 +96,7 @@ fun NectarApp() {
             plantData?.let {
                 SinglePlantScreen(
                     navController = navController,
-                    plant = plantData,
+                    p = plantData,
                     vm = vm
                 )
             }

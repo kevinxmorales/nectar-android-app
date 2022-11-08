@@ -17,14 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.morales.nectar.R
 import com.morales.nectar.composables.CommonDivider
-import com.morales.nectar.composables.CommonImage
+import com.morales.nectar.composables.PlantImage
 import com.morales.nectar.composables.ProgressSpinner
 import com.morales.nectar.screens.NectarViewModel
 
@@ -39,6 +37,7 @@ fun CreateNewPlantScreen(
     var imagesUrl3 by rememberSaveable { mutableStateOf("") }
     var plantName by rememberSaveable { mutableStateOf("") }
     var scientificName by rememberSaveable { mutableStateOf("") }
+    var toxicity by rememberSaveable { mutableStateOf("") }
     val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
     val newPostImageLauncher1 = rememberLauncherForActivityResult(
@@ -63,6 +62,21 @@ fun CreateNewPlantScreen(
         }
     }
 
+    val onSubmit: () -> Unit = {
+        focusManager.clearFocus()
+        vm.onNewPost(
+            listOf(
+                Uri.parse(imagesUrl1),
+                Uri.parse(imagesUrl2),
+                Uri.parse(imagesUrl3)
+            ),
+            plantName,
+            scientificName,
+            toxicity,
+        )
+        navController.popBackStack()
+    }
+
     if (isLoading) {
         ProgressSpinner()
     }
@@ -71,33 +85,8 @@ fun CreateNewPlantScreen(
             .fillMaxWidth()
             .background(Color.White)
     ) {
-        Row(
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        ) {
-            Text(
-                text = "Cancel",
-                modifier = Modifier
-                    .clickable { navController.popBackStack() }
-            )
-            Text(
-                text = "Post",
-                modifier = Modifier.clickable {
-                    focusManager.clearFocus()
-                    vm.onNewPost(
-                        listOf(
-                            Uri.parse(imagesUrl1),
-                            Uri.parse(imagesUrl2),
-                            Uri.parse(imagesUrl3)
-                        ),
-                        plantName
-                    )
-                    navController.popBackStack()
-                }
-            )
-        }
+
+        PlantCreateOptionsBar(navController, onSubmit)
 
         CommonDivider()
 
@@ -128,92 +117,75 @@ fun CreateNewPlantScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
+            PlantTextFieldRow(
+                label = "Common Name: e.g. Monstera Albo",
                 text = "Common Name",
-                fontSize = 18.sp,
-                fontFamily = FontFamily.Serif,
-                modifier = Modifier
-                    .padding(8.dp)
-            )
-            OutlinedTextField(
-                colors = TextFieldDefaults.textFieldColors(
-                    backgroundColor = Color.Transparent,
-                    textColor = Color.Black
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
                 onValueChange = { plantName = it },
-                value = plantName,
-                label = {
-                    Text(text = "Common Name: e.g. Monstera Albo")
-                }
+                value = plantName
             )
-
-            Text(
+            PlantTextFieldRow(
+                label = "Scientific Name: e.g. Monstera deliciosa ",
                 text = "Scientific Name",
-                fontSize = 18.sp,
-                fontFamily = FontFamily.Serif,
-                modifier = Modifier
-                    .padding(8.dp)
-            )
-            OutlinedTextField(
-                colors = TextFieldDefaults.textFieldColors(
-                    backgroundColor = Color.Transparent,
-                    textColor = Color.Black
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
                 onValueChange = { scientificName = it },
-                value = scientificName,
-                label = {
-                    Text(text = "Scientific Name: e.g. Monstera deliciosa ")
-                }
+                value = scientificName
             )
-
-            Text(
+            PlantTextFieldRow(
+                label = "Toxicity: e.g. Toxic to Pets",
                 text = "Toxicity",
-                fontSize = 18.sp,
-                fontFamily = FontFamily.Serif,
-                modifier = Modifier
-                    .padding(8.dp)
-            )
-            OutlinedTextField(
-                colors = TextFieldDefaults.textFieldColors(
-                    backgroundColor = Color.Transparent,
-                    textColor = Color.Black
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                onValueChange = { scientificName = it },
-                value = scientificName,
-                label = {
-                    Text(text = "Toxicity: e.g. Toxic to Pets")
-                }
+                onValueChange = { toxicity = it },
+                value = toxicity
             )
         }
     }
 }
 
 @Composable
-fun PlantImage(imageUri: String) {
-    val modifier = Modifier
-        .height(150.dp)
-        .width(150.dp)
-        .padding(8.dp)
-    if (imageUri.isNotEmpty()) {
-        CommonImage(
-            data = imageUri,
-            contentDescription = "An image you selected for your plant",
-            modifier = modifier
+fun PlantCreateOptionsBar(navController: NavController, onSubmit: () -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp)
+    ) {
+        Text(
+            text = "Cancel",
+            modifier = Modifier
+                .clickable { navController.popBackStack() }
         )
-    } else {
-        Image(
-            painter = painterResource(id = R.drawable.placeholder),
-            contentDescription = "Placeholder image",
-            modifier = modifier
+        Text(
+            text = "Submit",
+            modifier = Modifier
+                .clickable { onSubmit() }
         )
     }
+}
+
+@Composable
+fun PlantTextFieldRow(
+    label: String,
+    text: String,
+    onValueChange: (String) -> Unit,
+    value: String
+) {
+    Text(
+        text = text,
+        fontSize = 18.sp,
+        fontFamily = FontFamily.Serif,
+        modifier = Modifier
+            .padding(8.dp)
+    )
+    OutlinedTextField(
+        colors = TextFieldDefaults.textFieldColors(
+            backgroundColor = Color.Transparent,
+            textColor = Color.Black
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        onValueChange = { onValueChange(it) },
+        value = value,
+        label = {
+            Text(text = label)
+        }
+    )
 }

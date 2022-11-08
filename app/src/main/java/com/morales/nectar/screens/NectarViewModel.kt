@@ -29,6 +29,8 @@ private const val USERS = "users"
 private const val POSTS = "posts"
 private const val CARE = "care"
 private const val TAG = "NectarViewModel"
+private val FILLER_WORDS = listOf("the", "be", "to", "is", "of", "and", "or", "a", "in", "it")
+
 
 @HiltViewModel
 class NectarViewModel @Inject constructor(
@@ -55,6 +57,8 @@ class NectarViewModel @Inject constructor(
     val careLogEntriesProgress = mutableStateOf(false)
 
     val numFollowers = mutableStateOf(0)
+
+    val currentPlant = mutableStateOf<PlantData?>(null)
 
     init {
         val currentUser = auth.currentUser
@@ -244,6 +248,102 @@ class NectarViewModel @Inject constructor(
         return updatedUser?.imageUrl
     }
 
+    fun fetchPlantById(id: String?) {
+        isLoading.value = true
+        if (id == null) {
+            currentPlant.value = null
+        }
+        viewModelScope.launch(Dispatchers.Main) {
+            firestore.collection(POSTS).document(id!!).get()
+                .addOnSuccessListener {
+                    currentPlant.value = it.toObject<PlantData>()
+                    isLoading.value = false
+                }
+                .addOnFailureListener { e ->
+                    handleException(e, "Unable to fetch plant data")
+                    isLoading.value = false
+                }
+        }
+    }
+
+    fun onEditPost(
+        originalPlant: PlantData,
+        uris: List<Uri?>,
+        commonName: String,
+        scientificName: String?,
+        toxicity: String?
+    ) {
+        viewModelScope.launch(Dispatchers.Main) {
+            onEditPostAsync(originalPlant, uris, commonName, scientificName, toxicity)
+        }
+    }
+
+    private suspend fun onEditPostAsync(
+        originalPlant: PlantData,
+        uris: List<Uri?>,
+        commonName: String,
+        scientificName: String?,
+        toxicity: String?
+    ) {
+        isLoading.value = true
+        if (originalPlant.plantId == null) {
+            handleException(customMessage = "Error: unable to update plant")
+            isLoading.value = false
+            return
+        }
+        val currentUid = auth.currentUser?.uid
+        if (currentUid == null) {
+            handleException(customMessage = "Error: username unavailable. unable to update post")
+            onLogout()
+            isLoading.value = false
+            return
+        }
+
+        val originalImages = originalPlant.images
+        val resultUris = uploadImages(uris)
+        val updatedUris = mutableListOf<String>()
+        if (originalImages != null) {
+            for (i in resultUris.indices) {
+                val currentResultUri = resultUris[i]
+                if (currentResultUri != null) {
+                    updatedUris.add(currentResultUri.toString())
+                } else if (i < originalImages.size) {
+                    updatedUris.add(originalImages[i])
+                }
+            }
+        } else {
+            updatedUris.addAll(resultUris
+                .filterNotNull()
+                .map { uri -> uri.toString() }
+                .filter { uri -> uri.isNotEmpty() }
+                .toMutableList())
+        }
+
+        originalPlant.commonName = commonName
+        originalPlant.scientificName = scientificName
+        originalPlant.toxicity = toxicity
+        originalPlant.searchTerms = commonName
+            .split(" ", ".", ",", "?", "!", "#")
+            .map { it.lowercase() }
+            .filter { it.isNotEmpty() and !FILLER_WORDS.contains(it) }
+        val plantDataMap = originalPlant.toMap().toMutableMap()
+
+        plantDataMap["images"] = updatedUris
+
+        Log.i(TAG, plantDataMap.toString())
+
+        firestore.collection(POSTS).document(originalPlant.plantId).update(plantDataMap)
+            .addOnSuccessListener {
+                popupNotification.value = Event("Plant successfully updated")
+                isLoading.value = false
+                refreshPosts()
+            }
+            .addOnFailureListener { e ->
+                handleException(e, "Unable to update post")
+                isLoading.value = false
+            }
+    }
+
     fun onNewPost(uris: List<Uri>, commonName: String, scientificName: String?, toxicity: String?) {
         viewModelScope.launch(Dispatchers.Main) {
             onNewPostAsync(uris, commonName, scientificName, toxicity)
@@ -256,14 +356,49 @@ class NectarViewModel @Inject constructor(
         scientificName: String?,
         toxicity: String?
     ) {
-        val uriList = mutableListOf<Uri>()
-        for (uri in uris) {
-            if (uri.toString().isNotEmpty()) {
-                uriList.add(uri)
-            }
+        isLoading.value = true
+        val uriList = uris.filter { uri -> uri.toString().isNotEmpty() }
+        val resultUris = uploadImages(uriList).filterNotNull()
+
+        val currentUid = auth.currentUser?.uid
+        val currentUsername = userData.value?.username
+        val currentUserImage = userData.value?.imageUrl
+
+        if (currentUid == null) {
+            handleException(customMessage = "Error: username unavailable. unable to create post")
+            onLogout()
+            isLoading.value = false
+            return
         }
-        val result = uploadImages(uriList)
-        onCreatePost(result, commonName, scientificName, toxicity)
+
+        val postUuid = UUID.randomUUID().toString()
+
+        val post = PlantData(
+            plantId = postUuid,
+            commonName = commonName,
+            scientificName = scientificName,
+            toxicity = toxicity,
+            userId = currentUid,
+            username = currentUsername,
+            userImage = currentUserImage,
+            images = resultUris.map { uri -> uri.toString() },
+            likes = listOf(),
+            searchTerms = commonName
+                .split(" ", ".", ",", "?", "!", "#")
+                .map { it.lowercase() }
+                .filter { it.isNotEmpty() and !FILLER_WORDS.contains(it) }
+        )
+        Log.i(TAG, post.toString())
+        firestore.collection(POSTS).document(postUuid).set(post)
+            .addOnSuccessListener {
+                popupNotification.value = Event("Post successfully created")
+                isLoading.value = false
+                refreshPosts()
+            }
+            .addOnFailureListener { e ->
+                handleException(e, "Unable to create post")
+                isLoading.value = false
+            }
     }
 
     private suspend fun uploadAsync(uri: Uri, storageRef: StorageReference): Uri {
@@ -278,65 +413,19 @@ class NectarViewModel @Inject constructor(
             .await()
     }
 
-    private suspend fun uploadImages(uris: List<Uri>): List<Uri> {
+    private suspend fun uploadImages(uris: List<Uri?>): List<Uri?> {
         isLoading.value = true
-        val resultUris = mutableListOf<Uri>()
+        val resultUris = mutableListOf<Uri?>()
         for (uri in uris) {
-            val storageRef = storage.reference
-            resultUris.add(uploadAsync(uri, storageRef))
+            if (uri == null || uri.toString().isEmpty()) {
+                resultUris.add(null)
+            } else {
+                val storageRef = storage.reference
+                resultUris.add(uploadAsync(uri, storageRef))
+            }
         }
         Log.i(TAG, resultUris.toString())
         return resultUris
-    }
-
-    private fun onCreatePost(
-        imageUriList: List<Uri>,
-        commonName: String,
-        scientificName: String?,
-        toxicity: String?
-    ) {
-        isLoading.value = true
-        val currentUid = auth.currentUser?.uid
-        val currentUsername = userData.value?.username
-        val currentUserImage = userData.value?.imageUrl
-
-        if (currentUid == null) {
-            handleException(customMessage = "Error: username unavailable. unable to create post")
-            onLogout()
-            isLoading.value = false
-            return
-        }
-
-        val postUuid = UUID.randomUUID().toString()
-
-        val fillerWords = listOf("the", "be", "to", "is", "of", "and", "or", "a", "in", "it")
-
-        val post = PlantData(
-            plantId = postUuid,
-            commonName = commonName,
-            scientificName = scientificName,
-            toxicity = toxicity,
-            userId = currentUid,
-            username = currentUsername,
-            userImage = currentUserImage,
-            images = imageUriList.map { uri -> uri.toString() },
-            likes = listOf(),
-            searchTerms = commonName
-                .split(" ", ".", ",", "?", "!", "#")
-                .map { it.lowercase() }
-                .filter { it.isNotEmpty() and !fillerWords.contains(it) }
-        )
-        Log.i(TAG, post.toString())
-        firestore.collection(POSTS).document(postUuid).set(post)
-            .addOnSuccessListener {
-                popupNotification.value = Event("Post successfully created")
-                isLoading.value = false
-                refreshPosts()
-            }
-            .addOnFailureListener { e ->
-                handleException(e, "Unable to create post")
-                isLoading.value = false
-            }
     }
 
 

@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import coil.annotation.ExperimentalCoilApi
 import coil.compose.ImagePainter
 import coil.compose.rememberImagePainter
 import com.morales.nectar.R
@@ -40,6 +41,7 @@ fun ProgressSpinner() {
     }
 }
 
+@OptIn(ExperimentalCoilApi::class)
 @Composable
 fun CommonImage(
     data: String?,

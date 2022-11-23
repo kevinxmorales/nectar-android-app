@@ -257,6 +257,7 @@ class NectarViewModel @Inject constructor(
             firestore.collection(POSTS).document(id!!).get()
                 .addOnSuccessListener {
                     currentPlant.value = it.toObject<PlantData>()
+                    refreshPosts()
                     isLoading.value = false
                 }
                 .addOnFailureListener { e ->
@@ -266,7 +267,7 @@ class NectarViewModel @Inject constructor(
         }
     }
 
-    fun onEditPost(
+    fun onUpdatePlant(
         originalPlant: PlantData,
         uris: List<Uri?>,
         commonName: String,
@@ -274,11 +275,11 @@ class NectarViewModel @Inject constructor(
         toxicity: String?
     ) {
         viewModelScope.launch(Dispatchers.Main) {
-            onEditPostAsync(originalPlant, uris, commonName, scientificName, toxicity)
+            onEditPlantAsync(originalPlant, uris, commonName, scientificName, toxicity)
         }
     }
 
-    private suspend fun onEditPostAsync(
+    private suspend fun onEditPlantAsync(
         originalPlant: PlantData,
         uris: List<Uri?>,
         commonName: String,
@@ -344,13 +345,45 @@ class NectarViewModel @Inject constructor(
             }
     }
 
-    fun onNewPost(uris: List<Uri>, commonName: String, scientificName: String?, toxicity: String?) {
+    fun onDeletePlant(plantToBeDeleted: PlantData) {
         viewModelScope.launch(Dispatchers.Main) {
-            onNewPostAsync(uris, commonName, scientificName, toxicity)
+            onDeletePlantAsync(plantToBeDeleted)
+        }
+
+    }
+
+    private fun onDeletePlantAsync(plantToBeDeleted: PlantData) {
+        isLoading.value = true
+
+        //Delete plant from fire store
+        if (plantToBeDeleted.plantId == null) {
+            handleException(customMessage = "An error was encountered trying to delete plant")
+            return
+        }
+        firestore.collection(POSTS).document(plantToBeDeleted.plantId).delete()
+            .addOnSuccessListener {
+                popupNotification.value = Event("Plant successfully deleted")
+                isLoading.value = false
+                refreshPosts()
+            }
+            .addOnFailureListener { e ->
+                handleException(e, "Unable to update post")
+                isLoading.value = false
+            }
+    }
+
+    fun onAddNewPlant(
+        uris: List<Uri>,
+        commonName: String,
+        scientificName: String?,
+        toxicity: String?
+    ) {
+        viewModelScope.launch(Dispatchers.Main) {
+            onAddNewPlantAsync(uris, commonName, scientificName, toxicity)
         }
     }
 
-    private suspend fun onNewPostAsync(
+    private suspend fun onAddNewPlantAsync(
         uris: List<Uri>,
         commonName: String,
         scientificName: String?,
@@ -401,7 +434,7 @@ class NectarViewModel @Inject constructor(
             }
     }
 
-    private suspend fun uploadAsync(uri: Uri, storageRef: StorageReference): Uri {
+    private suspend fun uploadImageAsync(uri: Uri, storageRef: StorageReference): Uri {
         val fileName = UUID.randomUUID()
         val imageRef = storageRef.child("images/$fileName")
         Log.i(TAG, uri.toString())
@@ -421,10 +454,11 @@ class NectarViewModel @Inject constructor(
                 resultUris.add(null)
             } else {
                 val storageRef = storage.reference
-                resultUris.add(uploadAsync(uri, storageRef))
+                resultUris.add(uploadImageAsync(uri, storageRef))
             }
         }
         Log.i(TAG, resultUris.toString())
+        isLoading.value = false
         return resultUris
     }
 

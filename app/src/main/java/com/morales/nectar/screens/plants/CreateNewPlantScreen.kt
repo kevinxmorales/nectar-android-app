@@ -64,7 +64,7 @@ fun CreateNewPlantScreen(
 
     val onSubmit: () -> Unit = {
         focusManager.clearFocus()
-        vm.onNewPost(
+        vm.onAddNewPlant(
             listOf(
                 Uri.parse(imagesUrl1),
                 Uri.parse(imagesUrl2),

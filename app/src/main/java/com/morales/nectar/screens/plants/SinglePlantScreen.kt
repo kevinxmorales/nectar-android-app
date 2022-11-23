@@ -3,10 +3,10 @@ package com.morales.nectar.screens.plants
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.Card
-import androidx.compose.material.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,6 +26,7 @@ import com.morales.nectar.data.remote.responses.CareLogEntry
 import com.morales.nectar.navigation.NavParam
 import com.morales.nectar.navigation.navigateTo
 import com.morales.nectar.screens.NectarViewModel
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -38,49 +39,130 @@ fun SinglePlantScreen(
     val currentPlant = vm.currentPlant.value
     val careLogEntries = vm.careLogEntries.value
     val scrollState = rememberScrollState()
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val openDrawer = {
+        scope.launch {
+            drawerState.open()
+        }
+    }
+    val showDeleteDialog = remember { mutableStateOf(false) }
 
-    LaunchedEffect(key1 = Unit) {
+    val getPlant = {
         vm.fetchPlantById(p.plantId)
         vm.getCareLogEntries(p.plantId)
     }
 
+    val optionsMap = mapOf(
+        "Update" to {
+            navigateTo(
+                navController,
+                DestinationScreen.EditPlantScreen,
+                NavParam("plant", currentPlant ?: p)
+            )
+        },
+        "Delete" to {
+            showDeleteDialog.value = true
+        }
+    )
+
+    val optionsDrawerFS = true
+
+    LaunchedEffect(key1 = Unit) {
+        getPlant()
+    }
+
     if (currentPlant != null) {
+        if (showDeleteDialog.value) {
+            ConfirmDeleteDialog(
+                onCancel = { showDeleteDialog.value = false },
+                onDelete = {
+                    vm.onDeletePlant(currentPlant)
+                    showDeleteDialog.value = false
+                    navController.popBackStack()
+                }
+            )
+        }
+
         currentPlant.userId?.let {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp)
+                    .background(Color.White)
 
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                ) {
-                    Text(
-                        text = "Back",
-                        modifier = Modifier.clickable {
-                            navController.popBackStack()
-                            vm.currentPlant.value = null
-                        })
+                SinglePostHeader(
+                    currentPlant,
+                    getPlant,
+                    navController,
+                    vm,
+                    optionsDrawerFS,
+                    optionsMap
+                )
 
-                    Text(
-                        text = "Edit",
-                        modifier = Modifier.clickable {
-                            navigateTo(
-                                navController,
-                                DestinationScreen.EditPlantScreen,
-                                NavParam("plant", currentPlant)
-                            )
-                        }
-                    )
-                }
                 CommonDivider()
 
-                SinglePostDisplay(navController, vm, currentPlant, careLogEntries.size, scrollState)
+                SinglePostDisplay(
+                    navController,
+                    vm,
+                    currentPlant,
+                    careLogEntries.size,
+                    scrollState,
+                    onPressDelete = { showDeleteDialog.value = true }
+                )
             }
         }
+    }
+}
+
+@Composable
+fun SinglePostHeader(
+    currentPlant: PlantData,
+    getPlant: () -> Unit,
+    navController: NavController,
+    vm: NectarViewModel,
+    optionsDrawerFS: Boolean,
+    optionsMap: Map<String, () -> Unit>
+) {
+    Row(
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+    ) {
+        Text(
+            text = "Back",
+            modifier = Modifier.clickable {
+                navController.popBackStack()
+                vm.currentPlant.value = null
+            })
+
+        Image(
+            painter = painterResource(id = R.drawable.ic_refresh),
+            contentDescription = "refresh button",
+            modifier = Modifier
+                .size(24.dp)
+                .clickable { getPlant() },
+            colorFilter = ColorFilter.tint(Color.Black)
+        )
+
+        if (optionsDrawerFS) {
+            OptionsDrawer(optionsMap = optionsMap)
+        } else {
+            Text(
+                text = "Update",
+                modifier = Modifier.clickable {
+                    navigateTo(
+                        navController,
+                        DestinationScreen.EditPlantScreen,
+                        NavParam("plant", currentPlant)
+                    )
+                }
+            )
+        }
+
     }
 }
 
@@ -91,6 +173,7 @@ fun SinglePostDisplay(
     post: PlantData,
     numCareLogEntries: Int,
     scrollState: ScrollState,
+    onPressDelete: () -> Unit
 ) {
     val userData = vm.userData.value
     val careLogEntries = vm.careLogEntries.value
@@ -109,7 +192,7 @@ fun SinglePostDisplay(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Card(
                         shape = CircleShape,
@@ -123,22 +206,6 @@ fun SinglePostDisplay(
                         )
                     }
                     Text(text = post.username ?: "")
-                    Text(text = "", modifier = Modifier.padding(8.dp))
-                    val following = userData?.following
-                    val postUserId = post.userId
-                    if (userData?.authId == postUserId) {
-                        // Do not display anything
-                    } else if (following != null && following.contains(postUserId)) {
-                        Text(text = "Following", color = Color.Gray, modifier = Modifier.clickable {
-                            post.userId?.let {
-                                vm.onFollowClick(it)
-                            }
-                        })
-                    } else if (following != null && !following.contains(postUserId)) {
-                        Text(text = "Follow", color = Color.Blue, modifier = Modifier.clickable {
-                            post.userId?.let { vm.onFollowClick(it) }
-                        })
-                    }
                 }
             }
 
@@ -147,7 +214,7 @@ fun SinglePostDisplay(
                     Modifier
                         .fillMaxWidth()
                         .defaultMinSize(minHeight = 150.dp)
-                
+
                 CommonImage(
                     contentDescription = "a picture of the plant",
                     contentScale = ContentScale.FillWidth,
@@ -156,7 +223,10 @@ fun SinglePostDisplay(
                 )
 
             }
-            Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 if (!post.likes.isNullOrEmpty()) {
                     Image(
                         painter = painterResource(id = R.drawable.ic_like),
@@ -235,7 +305,7 @@ fun CareLogEntryRow(entry: CareLogEntry) {
             .padding(8.dp)
     ) {
         Column {
-            val simpleDateFormat = SimpleDateFormat("d MMM yyyy", Locale.getDefault());
+            val simpleDateFormat = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
             val dateString = simpleDateFormat.format(entry.timestamp)
             Text(text = "Date: $dateString", fontWeight = FontWeight.Bold)
             Text(text = "Watered: ${if (entry.wasWatered == true) "Yes" else "No"}")
@@ -245,3 +315,81 @@ fun CareLogEntryRow(entry: CareLogEntry) {
         }
     }
 }
+
+@Composable
+fun ConfirmDeleteDialog(
+    onCancel: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = {
+            onCancel.invoke()
+        },
+        title = {
+            Text(text = "Are you sure you want to delete?")
+        },
+        buttons = {
+            Column(
+                modifier = Modifier.padding(all = 8.dp),
+                verticalArrangement = Arrangement.Center
+
+            ) {
+                Button(
+                    modifier = Modifier,
+                    onClick = { onDelete.invoke() }
+                ) {
+                    Text("Confirm")
+                }
+                Button(
+                    modifier = Modifier,
+                    onClick = { onCancel.invoke() }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun OptionsDrawer(optionsMap: Map<String, () -> Unit>) {
+    TopAppBar(
+        backgroundColor = Color.White, modifier = Modifier
+            .size(50.dp),
+        elevation = 0.dp,
+        title = {
+            Text(text = "")
+        },
+        actions = {
+            OverflowMenu {
+                DropdownMenuItem(onClick = { optionsMap["Update"]?.invoke() }) {
+                    Text("Update")
+                }
+                DropdownMenuItem(onClick = { optionsMap["Delete"]?.invoke() }) {
+                    Text("Delete")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun OverflowMenu(content: @Composable () -> Unit) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    IconButton(onClick = {
+        showMenu = !showMenu
+    }) {
+        Icon(
+            imageVector = Icons.Outlined.MoreVert,
+            contentDescription = null,
+        )
+    }
+    DropdownMenu(
+        expanded = showMenu,
+        onDismissRequest = { showMenu = false }
+    ) {
+        content()
+    }
+}
+

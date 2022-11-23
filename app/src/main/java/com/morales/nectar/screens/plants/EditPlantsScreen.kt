@@ -87,7 +87,7 @@ fun EditPlantScreen(
         changedImages.add(if (wasImage3Changed) Uri.parse(imagesUrl3) else null)
 
         focusManager.clearFocus()
-        vm.onEditPost(
+        vm.onUpdatePlant(
             plant,
             changedImages.toImmutableList(),
             plantName,

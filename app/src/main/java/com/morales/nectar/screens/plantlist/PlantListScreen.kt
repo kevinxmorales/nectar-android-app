@@ -26,10 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import coil.annotation.ExperimentalCoilApi
+import com.google.accompanist.coil.rememberCoilPainter
 import com.morales.nectar.R
 import com.morales.nectar.data.models.PlantListEntry
-import com.google.accompanist.coil.rememberCoilPainter
 import com.morales.nectar.ui.theme.RobotoCondensed
 
 @Composable
@@ -37,15 +36,17 @@ fun PlantListScreen(
     navController: NavController
 ) {
     Surface(
-        color= MaterialTheme.colors.background,
+        color = MaterialTheme.colors.background,
         modifier = Modifier.fillMaxSize()
     ) {
         Column {
             Spacer(modifier = Modifier.height(10.dp))
-            Box(modifier = Modifier
-                .height(80.dp)
-                .width(80.dp)
-                .align(CenterHorizontally)) {
+            Box(
+                modifier = Modifier
+                    .height(80.dp)
+                    .width(80.dp)
+                    .align(CenterHorizontally)
+            ) {
                 Image(
                     painter = painterResource(id = R.drawable.logo2),
                     contentDescription = "Logo",
@@ -70,7 +71,7 @@ fun SearchBar(
     modifier: Modifier = Modifier,
     hint: String = "",
     onSearch: (String) -> Unit = {}
-){
+) {
     var text by remember {
         mutableStateOf("")
     }
@@ -97,10 +98,10 @@ fun SearchBar(
                     isHintDisplayed = !it.isFocused
                 }
         ) {
-            if(isHintDisplayed) {
+            if (isHintDisplayed) {
                 Text(
                     text = hint,
-                    color= Color.LightGray,
+                    color = Color.LightGray,
                     modifier = Modifier
                         .padding(horizontal = 20.dp, vertical = 12.dp)
                 )
@@ -115,19 +116,19 @@ fun PlantList(
     navController: NavController,
     viewModel: PlantListViewModel = hiltViewModel()
 ) {
-    val plantList by remember {viewModel.plantList}
-    val loadError by remember {viewModel.loadError}
-    val isLoading by remember {viewModel.isLoading}
-    val endReached by remember {viewModel.endReached}
+    val plantList by remember { viewModel.plantList }
+    val loadError by remember { viewModel.loadError }
+    val isLoading by remember { viewModel.isLoading }
+    val endReached by remember { viewModel.endReached }
 
     LazyColumn(contentPadding = PaddingValues(16.dp)) {
-        val itemCount = if(plantList.size % 2 == 0) {
+        val itemCount = if (plantList.size % 2 == 0) {
             plantList.size / 2
         } else {
             plantList.size / 2 + 1
         }
         items(itemCount) {
-            if(it >= itemCount - 1 && !endReached) {
+            if (it >= itemCount - 1 && !endReached) {
                 viewModel.loadPlantsPaginated()
             }
             PlantRow(rowIndex = it, entries = plantList, navController = navController)
@@ -136,11 +137,12 @@ fun PlantList(
 
     Box(
         contentAlignment = Center,
-        modifier = Modifier.fillMaxSize()) {
-        if(isLoading) {
+        modifier = Modifier.fillMaxSize()
+    ) {
+        if (isLoading) {
             CircularProgressIndicator(color = MaterialTheme.colors.primary)
         }
-        if(loadError.isNotEmpty()) {
+        if (loadError.isNotEmpty()) {
             RetrySection(error = loadError) {
                 viewModel.loadPlantsPaginated()
             }
@@ -148,7 +150,6 @@ fun PlantList(
     }
 }
 
-@OptIn(ExperimentalCoilApi::class)
 @Composable
 fun PlantEntry(
     entry: PlantListEntry,
@@ -186,8 +187,9 @@ fun PlantEntry(
                     .size(120.dp)
                     .align(CenterHorizontally)
             )
-            Text(text = entry.plantName, fontFamily = RobotoCondensed, fontSize = 20.sp,
-            textAlign = TextAlign.Center,
+            Text(
+                text = entry.plantName, fontFamily = RobotoCondensed, fontSize = 20.sp,
+                textAlign = TextAlign.Center,
             )
         }
     }
@@ -202,14 +204,14 @@ fun PlantRow(
     Column {
         Row {
             PlantEntry(
-                entry = entries[rowIndex * 2 ],
+                entry = entries[rowIndex * 2],
                 navController = navController,
                 modifier = Modifier.weight(1f),
             )
             Spacer(modifier = Modifier.width(16.dp))
             if (entries.size >= rowIndex * 2 + 2) {
                 PlantEntry(
-                    entry = entries[rowIndex * 2 + 1 ],
+                    entry = entries[rowIndex * 2 + 1],
                     navController = navController,
                     modifier = Modifier.weight(1f),
                 )
@@ -228,7 +230,7 @@ fun RetrySection(error: String, onRetry: () -> Unit) {
         Text(error, color = Color.Red, fontSize = 18.sp)
         Spacer(modifier = Modifier.height(8.dp))
         Button(
-            onClick = {onRetry()},
+            onClick = { onRetry() },
             modifier = Modifier
                 .align(CenterHorizontally)
         ) {

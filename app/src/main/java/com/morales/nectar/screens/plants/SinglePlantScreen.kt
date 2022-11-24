@@ -26,7 +26,6 @@ import com.morales.nectar.data.remote.responses.CareLogEntry
 import com.morales.nectar.navigation.NavParam
 import com.morales.nectar.navigation.navigateTo
 import com.morales.nectar.screens.NectarViewModel
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -39,20 +38,12 @@ fun SinglePlantScreen(
     val currentPlant = vm.currentPlant.value
     val careLogEntries = vm.careLogEntries.value
     val scrollState = rememberScrollState()
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    val openDrawer = {
-        scope.launch {
-            drawerState.open()
-        }
-    }
+    val optionsDrawerFS = true
     val showDeleteDialog = remember { mutableStateOf(false) }
-
     val getPlant = {
         vm.fetchPlantById(p.plantId)
         vm.getCareLogEntries(p.plantId)
     }
-
     val optionsMap = mapOf(
         "Update" to {
             navigateTo(
@@ -65,8 +56,6 @@ fun SinglePlantScreen(
             showDeleteDialog.value = true
         }
     )
-
-    val optionsDrawerFS = true
 
     LaunchedEffect(key1 = Unit) {
         getPlant()
@@ -109,7 +98,6 @@ fun SinglePlantScreen(
                     currentPlant,
                     careLogEntries.size,
                     scrollState,
-                    onPressDelete = { showDeleteDialog.value = true }
                 )
             }
         }
@@ -173,7 +161,6 @@ fun SinglePostDisplay(
     post: PlantData,
     numCareLogEntries: Int,
     scrollState: ScrollState,
-    onPressDelete: () -> Unit
 ) {
     val userData = vm.userData.value
     val careLogEntries = vm.careLogEntries.value
@@ -329,19 +316,21 @@ fun ConfirmDeleteDialog(
             Text(text = "Are you sure you want to delete?")
         },
         buttons = {
-            Column(
-                modifier = Modifier.padding(all = 8.dp),
-                verticalArrangement = Arrangement.Center
-
+            Row(
+                modifier = Modifier.padding(8.dp),
+                horizontalArrangement = Arrangement.Center
             ) {
                 Button(
-                    modifier = Modifier,
+                    modifier = Modifier
+                        .padding(4.dp)
+                        .padding(horizontal = 10.dp),
                     onClick = { onDelete.invoke() }
                 ) {
                     Text("Confirm")
                 }
+
                 Button(
-                    modifier = Modifier,
+                    modifier = Modifier.padding(4.dp),
                     onClick = { onCancel.invoke() }
                 ) {
                     Text("Cancel")

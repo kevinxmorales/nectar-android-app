@@ -1,7 +1,17 @@
 package com.morales.nectar.util
 
-sealed class Resource<T>(val data: T? = null, val message: String? = null) {
+import com.morales.nectar.exceptions.UnsuccessfulRequestException
+
+sealed class Resource<T>(
+    val data: T? = null,
+    val message: String? = null,
+    val exception: Exception? = null
+) {
     class Success<T>(data: T) : Resource<T>(data)
-    class Error<T>(message: String, data: T? = null) : Resource<T>(data, message)
-    class Loading<T>(data: T? = null) : Resource<T>(data)
+    class Error<T>(
+        message: String,
+        data: T? = null,
+        exception: Exception = UnsuccessfulRequestException()
+    ) :
+        Resource<T>(data, message, exception)
 }

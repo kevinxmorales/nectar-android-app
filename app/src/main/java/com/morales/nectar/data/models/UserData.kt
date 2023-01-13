@@ -1,20 +1,20 @@
 package com.morales.nectar.data.models
 
+import com.google.gson.annotations.SerializedName
+
 data class UserData(
-    var id: Int? = null,
-    var authId: String? = null,
-    var firstName: String? = null,
-    var lastName: String? = null,
-    var username: String? = null,
-    var imageUrl: String? = null,
-    var following: List<String>? = null
-) {
-    fun toMap() = mapOf(
-        "authId" to authId,
-        "firstName" to firstName,
-        "lastName" to lastName,
-        "username" to username,
-        "imageUrl" to imageUrl,
-        "following" to following
-    )
-}
+    @SerializedName("name")
+    val name: String? = "",
+    @SerializedName("plantCount")
+    val plantCount: Int = 0,
+    @SerializedName("image_url")
+    var imageUrl: String? = "",
+    @SerializedName("following")
+    val following: List<String> = listOf(),
+    @SerializedName("id")
+    val id: String? = "",
+    @SerializedName("email")
+    val email: String? = "",
+    @SerializedName("username")
+    val username: String? = ""
+)

@@ -3,14 +3,24 @@ package com.morales.nectar.screens.plants
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
 import androidx.compose.material.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -22,9 +32,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.morales.nectar.composables.CommonDivider
+import com.morales.nectar.composables.NectarDatePicker
 import com.morales.nectar.composables.PlantImage
 import com.morales.nectar.composables.ProgressSpinner
 import com.morales.nectar.screens.NectarViewModel
+import java.time.LocalDate
 
 @Composable
 fun CreateNewPlantScreen(
@@ -38,6 +50,10 @@ fun CreateNewPlantScreen(
     var plantName by rememberSaveable { mutableStateOf("") }
     var scientificName by rememberSaveable { mutableStateOf("") }
     var toxicity by rememberSaveable { mutableStateOf("") }
+    var pickedDate by remember { mutableStateOf(LocalDate.now()) }
+    val onDatePicked = { newDate: LocalDate ->
+        pickedDate = newDate
+    }
     val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
     val newPostImageLauncher1 = rememberLauncherForActivityResult(
@@ -135,6 +151,7 @@ fun CreateNewPlantScreen(
                 onValueChange = { toxicity = it },
                 value = toxicity
             )
+            NectarDatePicker(pickedDate = pickedDate, onClick = onDatePicked)
         }
     }
 }

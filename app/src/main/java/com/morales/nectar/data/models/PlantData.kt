@@ -1,7 +1,9 @@
-package com.morales.nectar.data.remote.requests
+package com.morales.nectar.data.models
 
 import android.os.Parcel
 import android.os.Parcelable
+import com.google.gson.annotations.SerializedName
+import java.util.*
 
 data class PlantData(
     val plantId: String? = null,
@@ -9,12 +11,13 @@ data class PlantData(
     var scientificName: String? = null,
     var toxicity: String? = null,
     val userId: String? = null,
+    @SerializedName("userProfileImage")
     val userImage: String? = null,
     val username: String? = null,
-    val images: List<String>? = null,
+    var images: List<String>? = null,
     var likes: List<String>? = listOf(),
     var searchTerms: List<String>? = listOf(),
-    val createdAt: String? = null,
+    val createdAt: String? = Calendar.getInstance().time.toString(),
 ) : Parcelable {
     constructor(parcel: Parcel) : this(
         parcel.readString(),
@@ -57,20 +60,5 @@ data class PlantData(
         override fun newArray(size: Int): Array<PlantData?> {
             return arrayOfNulls(size)
         }
-    }
-
-    fun toMap(): Map<String, Any?> {
-        return mapOf(
-            "plantId" to plantId,
-            "commonName" to commonName,
-            "scientificName" to scientificName,
-            "toxicity" to toxicity,
-            "userId" to userId,
-            "username" to username,
-            "images" to images,
-            "likes" to likes,
-            "searchTerms" to searchTerms,
-            "createdAt" to createdAt,
-        )
     }
 }

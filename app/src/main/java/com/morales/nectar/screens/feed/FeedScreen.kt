@@ -1,8 +1,14 @@
 package com.morales.nectar.screens.feed
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -11,12 +17,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Card
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -25,9 +29,7 @@ import com.morales.nectar.DestinationScreen
 import com.morales.nectar.composables.CommonImage
 import com.morales.nectar.composables.LikeAnimation
 import com.morales.nectar.composables.ProgressSpinner
-import com.morales.nectar.data.remote.requests.PlantData
-import com.morales.nectar.navigation.BottomNavigationItem
-import com.morales.nectar.navigation.BottomNavigationMenu
+import com.morales.nectar.data.models.PlantData
 import com.morales.nectar.navigation.NavParam
 import com.morales.nectar.navigation.navigateTo
 import com.morales.nectar.screens.NectarViewModel
@@ -44,8 +46,9 @@ fun FeedScreen(
     val userData = vm.userData.value
     val userDataLoading = vm.isLoading.value
 
-    val personalizedFeed = vm.postsFeed.value
-    val personalizedFeedLoading = vm.postsFeedProgress.value
+    val personalizedFeed = vm.plantsFeed.value
+    val personalizedFeedLoading = vm.plantsFeedProgress.value
+    /*
 
     LaunchedEffect(key1 = Unit) {
         vm.getPersonalizedFeed()
@@ -63,7 +66,7 @@ fun FeedScreen(
                 .background(Color.White)
         ) {
         }
-        val currentUserId: String = userData?.authId!!
+        val currentUserId: String = userData?.id!!
         FeedPostList(
             currentUserId = currentUserId,
             loading = personalizedFeedLoading or userDataLoading,
@@ -78,6 +81,8 @@ fun FeedScreen(
         )
     }
 
+
+     */
 }
 
 @Composable
@@ -158,7 +163,7 @@ fun Post(post: PlantData, currentUserId: String, vm: NectarViewModel, onPostClic
                                     } else {
                                         likeAnimation.value = true
                                     }
-                                    vm.onLikePost(post)
+                                    //vm.onLikePost(post)
                                 },
                                 onTap = {
                                     onPostClick.invoke()

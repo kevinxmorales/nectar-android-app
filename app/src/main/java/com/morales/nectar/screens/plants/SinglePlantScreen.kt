@@ -1,11 +1,12 @@
 package com.morales.nectar.screens.plants
 
+import android.util.Log
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,18 +17,21 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.google.accompanist.pager.ExperimentalPagerApi
+import com.google.accompanist.pager.HorizontalPager
 import com.morales.nectar.DestinationScreen
 import com.morales.nectar.R
 import com.morales.nectar.composables.CommonDivider
 import com.morales.nectar.composables.CommonImage
 import com.morales.nectar.composables.ProgressSpinner
-import com.morales.nectar.data.remote.requests.PlantData
-import com.morales.nectar.data.remote.responses.CareLogEntry
+import com.morales.nectar.data.models.CareLogEntry
+import com.morales.nectar.data.models.PlantData
 import com.morales.nectar.navigation.NavParam
 import com.morales.nectar.navigation.navigateTo
 import com.morales.nectar.screens.NectarViewModel
-import java.text.SimpleDateFormat
 import java.util.*
+
+private const val TAG = "SinglePlant Screen"
 
 @Composable
 fun SinglePlantScreen(
@@ -35,84 +39,68 @@ fun SinglePlantScreen(
     p: PlantData,
     vm: NectarViewModel,
 ) {
-    val currentPlant = vm.currentPlant.value
-    val careLogEntries = vm.careLogEntries.value
+    val currentPlant = p
     val scrollState = rememberScrollState()
-    val optionsDrawerFS = true
-    val showDeleteDialog = remember { mutableStateOf(false) }
     val getPlant = {
         vm.fetchPlantById(p.plantId)
-        vm.getCareLogEntries(p.plantId)
+        vm.getCareLogEntries(p.plantId!!, null)
     }
-    val optionsMap = mapOf(
-        "Update" to {
-            navigateTo(
-                navController,
-                DestinationScreen.EditPlantScreen,
-                NavParam("plant", currentPlant ?: p)
-            )
-        },
-        "Delete" to {
-            showDeleteDialog.value = true
-        }
-    )
+
+    val onDelete = {
+        vm.onDeletePlant(currentPlant)
+    }
+
+    val onUpdate = {
+        navigateTo(
+            navController,
+            DestinationScreen.EditPlantScreen,
+            NavParam("plant", currentPlant)
+        )
+    }
 
     LaunchedEffect(key1 = Unit) {
         getPlant()
     }
 
-    if (currentPlant != null) {
-        if (showDeleteDialog.value) {
-            ConfirmDeleteDialog(
-                onCancel = { showDeleteDialog.value = false },
-                onDelete = {
-                    vm.onDeletePlant(currentPlant)
-                    showDeleteDialog.value = false
-                    navController.popBackStack()
-                }
-            )
-        }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp)
+            .background(Color.White)
 
-        currentPlant.userId?.let {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)
-                    .background(Color.White)
+    ) {
+        SinglePostHeader(navController, onDelete, onUpdate)
 
-            ) {
-                SinglePostHeader(
-                    currentPlant,
-                    getPlant,
-                    navController,
-                    vm,
-                    optionsDrawerFS,
-                    optionsMap
-                )
+        CommonDivider()
 
-                CommonDivider()
-
-                SinglePostDisplay(
-                    navController,
-                    vm,
-                    currentPlant,
-                    careLogEntries.size,
-                    scrollState,
-                )
-            }
-        }
+        SinglePostDisplay(
+            navController,
+            vm,
+            currentPlant,
+            scrollState
+        )
     }
+
 }
 
 @Composable
 fun SinglePostHeader(
-    currentPlant: PlantData,
-    getPlant: () -> Unit,
     navController: NavController,
-    vm: NectarViewModel,
-    optionsDrawerFS: Boolean,
-    optionsMap: Map<String, () -> Unit>
+    onDelete: () -> Unit,
+    onUpdate: () -> Unit,
 ) {
+    val showDeleteDialog = remember { mutableStateOf(false) }
+    if (showDeleteDialog.value) {
+        ConfirmDeleteDialog(
+            onCancel = { showDeleteDialog.value = false },
+            onDelete = {
+                onDelete.invoke()
+                showDeleteDialog.value = false
+                navController.popBackStack()
+            }
+        )
+    }
+
     Row(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -120,51 +108,56 @@ fun SinglePostHeader(
             .fillMaxWidth()
             .background(Color.White)
     ) {
-        Text(
-            text = "Back",
-            modifier = Modifier.clickable {
-                navController.popBackStack()
-                vm.currentPlant.value = null
-            })
-
         Image(
-            painter = painterResource(id = R.drawable.ic_refresh),
-            contentDescription = "refresh button",
+            painter = painterResource(id = R.drawable.ic_baseline_arrow_back_ios_24),
+            contentDescription = "back button",
             modifier = Modifier
                 .size(24.dp)
-                .clickable { getPlant() },
+                .clickable { navController.popBackStack() },
             colorFilter = ColorFilter.tint(Color.Black)
         )
-
-        if (optionsDrawerFS) {
-            OptionsDrawer(optionsMap = optionsMap)
-        } else {
-            Text(
-                text = "Update",
-                modifier = Modifier.clickable {
-                    navigateTo(
-                        navController,
-                        DestinationScreen.EditPlantScreen,
-                        NavParam("plant", currentPlant)
-                    )
-                }
-            )
-        }
-
+        Image(
+            painter = painterResource(id = R.drawable.ic_edit),
+            contentDescription = "edit button",
+            modifier = Modifier
+                .size(24.dp)
+                .clickable { onUpdate.invoke() },
+            colorFilter = ColorFilter.tint(Color.Black)
+        )
+        Image(
+            painter = painterResource(id = R.drawable.ic_delete),
+            contentDescription = "delete button",
+            modifier = Modifier
+                .size(24.dp)
+                .clickable { showDeleteDialog.value = true },
+            colorFilter = ColorFilter.tint(Color.Black)
+        )
     }
 }
 
+@OptIn(ExperimentalPagerApi::class)
 @Composable
 fun SinglePostDisplay(
     navController: NavController,
     vm: NectarViewModel,
     post: PlantData,
-    numCareLogEntries: Int,
     scrollState: ScrollState,
 ) {
-    val userData = vm.userData.value
     val careLogEntries = vm.careLogEntries.value
     val careLogEntriesProgress = vm.careLogEntriesProgress.value
+
+    val onAddCareLogEntry = {
+        navController.navigate(DestinationScreen.CareLogEntries.createRoute(post.plantId!!))
+    }
+
+    val refreshScreen = {
+        navController.popBackStack()
+        navigateTo(
+            navController,
+            DestinationScreen.SinglePlant,
+            NavParam("plant", post)
+        )
+    }
 
     Column {
         Column(
@@ -197,17 +190,21 @@ fun SinglePostDisplay(
             }
 
             Box {
-                val modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .defaultMinSize(minHeight = 150.dp)
-
-                CommonImage(
-                    contentDescription = "a picture of the plant",
-                    contentScale = ContentScale.FillWidth,
-                    data = post.images?.get(0),
-                    modifier = modifier,
-                )
+                post.images?.size?.let { size ->
+                    HorizontalPager(
+                        count = size,
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                    ) { page ->
+                        CommonImage(
+                            contentDescription = "a picture of the plant",
+                            contentScale = ContentScale.FillWidth,
+                            data = post.images!![page],
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .defaultMinSize(minHeight = 150.dp)
+                        )
+                    }
+                }
 
             }
             Row(
@@ -230,76 +227,182 @@ fun SinglePostDisplay(
                 Text(text = post.commonName ?: "", modifier = Modifier.padding(start = 8.dp))
             }
             CommonDivider()
-            if (userData?.authId == post.userId) {
-                Row(modifier = Modifier.padding(8.dp)) {
-                    if (numCareLogEntries > 0) {
-                        Text(text = "$numCareLogEntries Care Log Entries")
-                    }
-                }
-                Row(modifier = Modifier.padding(8.dp)) {
-                    Text(
-                        text = "+ Add new care log entry",
-                        color = Color.Blue,
-                        modifier = Modifier
-                            .clickable {
-                                post.plantId?.let { plantId ->
-                                    navController.navigate(
-                                        DestinationScreen.CareLogEntries.createRoute(
-                                            plantId
-                                        )
-                                    )
-                                }
-                            }
-                    )
-                }
 
-                if (careLogEntriesProgress) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        ProgressSpinner()
-                    }
-                } else if (careLogEntries.isEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(text = "No care log entries for this plant")
-                    }
-                } else {
-                    Column {
-                        careLogEntries.forEach { entry ->
-                            CareLogEntryRow(entry = entry)
-                        }
-                    }
+            Row(modifier = Modifier.padding(8.dp)) {
+                if (careLogEntries.isNotEmpty()) {
+                    Text(text = "${careLogEntries.size} Care Log ${if (careLogEntries.size > 1) "Entries" else "Entry"}")
                 }
             }
+            Row(modifier = Modifier.padding(8.dp)) {
+                Text(
+                    text = "+ Add new care log entry",
+                    color = Color.Blue,
+                    modifier = Modifier.clickable { onAddCareLogEntry.invoke() }
+                )
+            }
+            CommonDivider()
+
+            if (careLogEntriesProgress) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    ProgressSpinner()
+                }
+            } else {
+                CareLogEntryList(
+                    navController,
+                    careLogEntries,
+                    vm,
+                    refreshScreen
+                )
+            }
+
+
         }
 
     }
 }
 
 @Composable
-fun CareLogEntryRow(entry: CareLogEntry) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-    ) {
+fun CareLogEntryList(
+    navController: NavController,
+    careLogEntries: List<CareLogEntry>,
+    vm: NectarViewModel,
+    refreshScreen: () -> Unit
+) {
+    val onUpdate = { id: String ->
+        navController.navigate(DestinationScreen.CareLogEntries.createRoute(id))
+    }
+    val onDelete = { id: String ->
+        Log.i(TAG, id)
+        vm.deleteCareLogEntry(id)
+    }
+
+    if (careLogEntries.isEmpty()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(text = "No care log entries for this plant")
+        }
+    } else {
         Column {
-            val simpleDateFormat = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
-            val dateString = simpleDateFormat.format(entry.timestamp)
-            Text(text = "Date: $dateString", fontWeight = FontWeight.Bold)
+            careLogEntries.forEach { entry ->
+                CareLogEntryRow(entry, onUpdate, onDelete, refreshScreen)
+            }
+        }
+    }
+}
+
+@Composable
+fun CareLogEntryRow(
+    entry: CareLogEntry,
+    onUpdate: (id: String) -> Unit,
+    onDelete: (id: String) -> Unit,
+    refreshScreen: () -> Unit
+) {
+    var menuExpanded by remember {
+        mutableStateOf(false)
+    }
+    val showDeleteDialog = remember { mutableStateOf(false) }
+
+    Row(
+        horizontalArrangement = Arrangement.End,
+    ) {
+        if (showDeleteDialog.value) {
+            ConfirmDeleteDialog(
+                onCancel = { showDeleteDialog.value = false },
+                onDelete = {
+                    showDeleteDialog.value = false
+                    onDelete.invoke(entry.id!!)
+                    refreshScreen.invoke()
+                }
+            )
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(300.dp)
+        ) {
+            //val simpleDateFormat = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+            //val dateString = simpleDateFormat.format(entry.date?.split("T")?.get(0))
+            Text(text = "Date: ${entry.date?.split("T")?.get(0)}", fontWeight = FontWeight.Bold)
             Text(text = "Watered: ${if (entry.wasWatered == true) "Yes" else "No"}")
             Text(text = "Fertilized: ${if (entry.wasFertilized == true) "Yes" else "No"}")
             Text(text = "Notes: ${entry.notes}", modifier = Modifier.padding(bottom = 8.dp))
-            CommonDivider()
         }
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(20.dp),
+        ) {
+            Box {
+                IconButton(onClick = {
+                    menuExpanded = !menuExpanded
+                    showDeleteDialog.value = false
+                }) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = "More",
+                    )
+                }
+                // 5
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                ) {
+                    // 6
+                    DropdownMenuItem(
+                        onClick = {
+                            onUpdate.invoke(entry.id!!)
+                        }
+                    ) {
+                        Text("Update")
+                    }
+                    DropdownMenuItem(
+                        onClick = {
+                            showDeleteDialog.value = true
+                        }
+                    ) {
+                        Text("Delete")
+                    }
+                }
+            }
+        }
+        /*
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(50.dp),
+            verticalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_edit),
+                contentDescription = "edit button",
+                modifier = Modifier
+                    .padding(bottom = 10.dp)
+                    .size(25.dp)
+                    .clickable { onUpdate.invoke(entry.id!!) },
+                colorFilter = ColorFilter.tint(Color.Black)
+            )
+            CommonDivider()
+            Image(
+                painter = painterResource(id = R.drawable.ic_delete),
+                contentDescription = "delete button",
+                modifier = Modifier
+                    .padding(bottom = 10.dp)
+                    .size(25.dp)
+                    .clickable { showDeleteDialog.value = true },
+                colorFilter = ColorFilter.tint(Color.Black)
+            )
+        }
+
+         */
     }
 }
 
@@ -338,47 +441,5 @@ fun ConfirmDeleteDialog(
             }
         }
     )
-}
-
-@Composable
-fun OptionsDrawer(optionsMap: Map<String, () -> Unit>) {
-    TopAppBar(
-        backgroundColor = Color.White, modifier = Modifier
-            .size(50.dp),
-        elevation = 0.dp,
-        title = {
-            Text(text = "")
-        },
-        actions = {
-            OverflowMenu {
-                DropdownMenuItem(onClick = { optionsMap["Update"]?.invoke() }) {
-                    Text("Update")
-                }
-                DropdownMenuItem(onClick = { optionsMap["Delete"]?.invoke() }) {
-                    Text("Delete")
-                }
-            }
-        }
-    )
-}
-
-@Composable
-fun OverflowMenu(content: @Composable () -> Unit) {
-    var showMenu by remember { mutableStateOf(false) }
-
-    IconButton(onClick = {
-        showMenu = !showMenu
-    }) {
-        Icon(
-            imageVector = Icons.Outlined.MoreVert,
-            contentDescription = null,
-        )
-    }
-    DropdownMenu(
-        expanded = showMenu,
-        onDismissRequest = { showMenu = false }
-    ) {
-        content()
-    }
 }
 

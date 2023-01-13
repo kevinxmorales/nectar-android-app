@@ -8,14 +8,19 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.morales.nectar.data.remote.requests.PlantData
+import com.morales.nectar.composables.NotificationMessage
+import com.morales.nectar.data.models.PlantData
 import com.morales.nectar.screens.NectarViewModel
-import com.morales.nectar.screens.auth.NotificationMessage
+import com.morales.nectar.screens.auth.LoginScreen
 import com.morales.nectar.screens.auth.ProfileScreen
 import com.morales.nectar.screens.auth.SignUpScreen
 import com.morales.nectar.screens.feed.FeedScreen
-import com.morales.nectar.screens.login.LoginScreen
-import com.morales.nectar.screens.plants.*
+import com.morales.nectar.screens.plants.CareLogEntriesScreen
+import com.morales.nectar.screens.plants.CreateNewPlantScreen
+import com.morales.nectar.screens.plants.EditPlantScreen
+import com.morales.nectar.screens.plants.MyPlantsScreen
+import com.morales.nectar.screens.plants.PlantSearchScreen
+import com.morales.nectar.screens.plants.SinglePlantScreen
 import com.morales.nectar.ui.theme.NectarTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -38,10 +43,6 @@ sealed class DestinationScreen(val route: String) {
     object Search : DestinationScreen("search")
     object MyPosts : DestinationScreen("myPosts")
     object Profile : DestinationScreen("profile")
-    object NewPost : DestinationScreen("newPost/{imageUri}") {
-        fun createRoute(uri: String) = "newPost/$uri"
-    }
-
     object CreateNewPlantScreen : DestinationScreen("addPlant")
     object EditPlantScreen : DestinationScreen("editPlant")
     object SinglePlant : DestinationScreen("singlePlant")

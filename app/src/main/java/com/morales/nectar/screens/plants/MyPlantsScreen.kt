@@ -19,7 +19,7 @@ import com.morales.nectar.DestinationScreen
 import com.morales.nectar.composables.CommonImage
 import com.morales.nectar.composables.ProgressSpinner
 import com.morales.nectar.composables.UserImageCard
-import com.morales.nectar.data.remote.requests.PlantData
+import com.morales.nectar.data.models.PlantData
 import com.morales.nectar.navigation.BottomNavigationItem
 import com.morales.nectar.navigation.BottomNavigationMenu
 import com.morales.nectar.navigation.NavParam
@@ -51,8 +51,8 @@ fun MyPlantsScreen(
 ) {
     val userData = vm.userData.value
     val isLoading = vm.isLoading.value
-    val postsLoading = vm.refreshPostsProgress.value
-    val posts = vm.posts.value
+    val postsLoading = vm.refreshPlantsProgress.value
+    val posts = vm.plants.value
     val numFollowers = vm.numFollowers.value
 
     Column {

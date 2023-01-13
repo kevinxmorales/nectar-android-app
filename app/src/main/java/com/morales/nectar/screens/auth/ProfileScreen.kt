@@ -49,7 +49,7 @@ fun ProfileScreen(
             username = username,
             onNameChange = { name = it },
             onUsernameChange = { username = it },
-            onSave = { vm.updateProfile(name, username) },
+            onSave = { vm.updateUserInfo(name = name, username = username) },
             onBack = { navigateTo(navController, DestinationScreen.MyPosts) },
             onLogout = {
                 vm.onLogout()

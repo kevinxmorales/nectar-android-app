@@ -37,13 +37,13 @@ fun PlantSearchScreen(
     navController: NavController,
     vm: NectarViewModel,
 ) {
-    val searchedPostsLoading = vm.searchedPostsProgress.value
-    val searchedPosts = vm.searchedPosts.value
+    val searchedPostsLoading = vm.searchedPlantsProgress.value
+    val searchedPosts = vm.searchedPlants.value
     var searchTerm by rememberSaveable { mutableStateOf("") }
 
     Column {
         SearchBar(
-            onSearch = { vm.searchPosts(searchTerm) },
+            onSearch = { vm.searchPlants(searchTerm) },
             onSearchChange = { searchTerm = it },
             searchTerm = searchTerm,
         )

@@ -1,36 +1,57 @@
 package com.morales.nectar.repository
 
-import android.util.Log
+import com.morales.nectar.data.models.PlantData
 import com.morales.nectar.data.remote.PlantsApi
-import com.morales.nectar.data.remote.responses.Plant
-import com.morales.nectar.data.remote.responses.PlantList
+import com.morales.nectar.data.remote.responses.GetPlantsResponse
+import com.morales.nectar.data.remote.responses.NewPlantData
 import com.morales.nectar.util.Resource
 import dagger.hilt.android.scopes.ActivityScoped
-import java.lang.Exception
 import javax.inject.Inject
 
 private const val TAG = "PlantsRepository"
 
 @ActivityScoped
 class PlantsRepository
-    @Inject constructor(private val api: PlantsApi){
+@Inject constructor(private val api: PlantsApi) {
 
-    suspend fun getPlantsListByUserId(id: Int): Resource<PlantList> {
-        val response = try {
-            api.getPlantListByUserId(id)
-        } catch(e: Exception) {
-            Log.i(TAG, e.toString())
-            return Resource.Error("An unknown error occurred")
-        }
-        return Resource.Success(response)
+    suspend fun getPlantsByUserId(
+        token: String,
+        id: String
+    ): Resource<GetPlantsResponse> {
+        return executeRequest { api.getPlantListByUserId(token, id) }
     }
 
-    suspend fun getPlantById(id: Int): Resource<Plant> {
-        val response = try {
-            api.getPlantById(id)
-        } catch(e: Exception) {
-            return Resource.Error("An unknown error occurred")
-        }
-        return Resource.Success(response)
+    suspend fun getPlantById(token: String, id: String): Resource<PlantData> {
+        return executeRequest { api.getPlantById(token, id) }
+    }
+
+    suspend fun searchPlants(
+        token: String,
+        userId: String,
+        params: String
+    ): Resource<List<PlantData>> {
+        return executeRequest { api.searchPlants(token, params) }
+    }
+
+    suspend fun createPlant(
+        token: String,
+        newPlantData: PlantData
+    ): Resource<PlantData> {
+        return executeRequest { api.createPlant(token, newPlantData) }
+    }
+
+    suspend fun updatePlant(
+        token: String,
+        updatedPlantData: PlantData,
+        plantId: String
+    ): Resource<PlantData> {
+        return executeRequest { api.updatePlant(token, plantId, updatedPlantData) }
+    }
+
+    suspend fun deletePlant(
+        token: String,
+        plantId: String
+    ): Resource<NewPlantData> {
+        return executeRequest { api.deletePlant(token, plantId) }
     }
 }

@@ -1,5 +1,6 @@
 package com.morales.nectar.composables
 
+import android.widget.Toast
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.spring
@@ -9,9 +10,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Card
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Divider
+import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,12 +23,19 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import coil.annotation.ExperimentalCoilApi
 import coil.compose.ImagePainter
 import coil.compose.rememberImagePainter
 import com.morales.nectar.R
+import com.morales.nectar.screens.NectarViewModel
+import com.vanpra.composematerialdialogs.MaterialDialog
+import com.vanpra.composematerialdialogs.datetime.date.datepicker
+import com.vanpra.composematerialdialogs.rememberMaterialDialogState
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun ProgressSpinner() {
@@ -142,5 +153,76 @@ fun PlantImage(imageUri: String) {
             contentDescription = "Placeholder image",
             modifier = modifier
         )
+    }
+}
+
+@Composable
+fun NectarSubmitButton(buttonText: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.padding(8.dp),
+        colors = ButtonDefaults.buttonColors(backgroundColor = Color.Blue)
+    ) {
+        Text(text = buttonText, color = Color.White)
+    }
+}
+
+@Composable
+fun NotificationMessage(vm: NectarViewModel) {
+    val notificationState = vm.popupNotification.value
+    val notificationMessage = notificationState?.getContentOrNull()
+    if (notificationMessage != null) {
+        Toast.makeText(LocalContext.current, notificationMessage, Toast.LENGTH_LONG).show()
+    }
+}
+
+@Composable
+fun NectarDatePicker(pickedDate: LocalDate, onClick: (LocalDate) -> Unit) {
+    val ctx = LocalContext.current
+
+    val formattedDate by remember {
+        derivedStateOf {
+            DateTimeFormatter
+                .ofPattern("MMM dd yyyy")
+                .format(pickedDate)
+        }
+    }
+    val dateDialogState = rememberMaterialDialogState()
+    Column(
+        modifier = Modifier
+            .fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Button(onClick = {
+            dateDialogState.show()
+        }) {
+            Text(text = "Pick date")
+        }
+        Text(text = formattedDate)
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+    MaterialDialog(
+        dialogState = dateDialogState,
+        buttons = {
+            positiveButton(text = "Ok") {
+                Toast.makeText(
+                    ctx,
+                    "Clicked ok",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            negativeButton(text = "Cancel")
+        }
+    ) {
+        datepicker(
+            initialDate = LocalDate.now(),
+            title = "Pick a date",
+            allowedDateValidator = {
+                it.dayOfMonth % 2 == 1
+            }
+        ) {
+            onClick.invoke(it)
+        }
     }
 }

@@ -3,8 +3,16 @@ package com.morales.nectar.screens.plants
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,9 +28,11 @@ import androidx.navigation.NavController
 import com.morales.nectar.composables.CommonDivider
 import com.morales.nectar.composables.PlantImage
 import com.morales.nectar.composables.ProgressSpinner
-import com.morales.nectar.data.remote.requests.PlantData
+import com.morales.nectar.data.models.PlantData
 import com.morales.nectar.screens.NectarViewModel
 import okhttp3.internal.toImmutableList
+
+private const val TAG = "EditPlantsScreen"
 
 @Composable
 fun EditPlantScreen(
@@ -31,22 +41,22 @@ fun EditPlantScreen(
     plant: PlantData,
 ) {
     val isLoading = vm.isLoading.value
-    val numImages = if (plant.images != null) plant.images.size else 0
+    val numImages = if (plant.images != null) plant.images!!.size else 0
     var imagesUrl1 by rememberSaveable {
         mutableStateOf(
-            if (numImages >= 1 && plant.images != null) plant.images[0] else ""
+            if (numImages >= 1 && plant.images != null) plant.images!![0] else ""
         )
     }
     var wasImage1Changed by rememberSaveable { mutableStateOf(false) }
     var imagesUrl2 by rememberSaveable {
         mutableStateOf(
-            if (numImages >= 2 && plant.images != null) plant.images[1] else ""
+            if (numImages >= 2 && plant.images != null) plant.images!![1] else ""
         )
     }
     var wasImage2Changed by rememberSaveable { mutableStateOf(false) }
     var imagesUrl3 by rememberSaveable {
         mutableStateOf(
-            if (numImages >= 3 && plant.images != null) plant.images[2] else ""
+            if (numImages >= 3 && plant.images != null) plant.images!![2] else ""
         )
     }
     var wasImage3Changed by rememberSaveable { mutableStateOf(false) }
@@ -95,7 +105,9 @@ fun EditPlantScreen(
             toxicity,
         )
         vm.fetchPlantById(plant.plantId)
+
         navController.popBackStack()
+
     }
 
     if (isLoading) {

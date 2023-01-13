@@ -2,32 +2,32 @@ package com.morales.nectar.screens
 
 import android.net.Uri
 import android.util.Log
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.QuerySnapshot
-import com.google.firebase.firestore.ktx.toObject
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
 import com.morales.nectar.data.Event
-import com.morales.nectar.data.remote.requests.PlantData
-import com.morales.nectar.data.remote.responses.CareLogEntry
-import com.morales.nectar.data.remote.responses.UserData
+import com.morales.nectar.data.models.CareLogEntry
+import com.morales.nectar.data.models.PlantData
+import com.morales.nectar.data.models.UserData
+import com.morales.nectar.data.remote.requests.care.CareLogRequest
+import com.morales.nectar.data.remote.requests.user.CreateUserRequest
+import com.morales.nectar.data.remote.requests.user.UpdateUserRequest
+import com.morales.nectar.exceptions.UnauthorizedException
+import com.morales.nectar.repository.CareLogRepository
+import com.morales.nectar.repository.PlantsRepository
 import com.morales.nectar.repository.UserRepository
+import com.morales.nectar.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.*
 import javax.inject.Inject
 
-
-private const val USERS = "users"
-private const val POSTS = "posts"
-private const val CARE = "care"
 private const val TAG = "NectarViewModel"
 private val FILLER_WORDS = listOf("the", "be", "to", "is", "of", "and", "or", "a", "in", "it")
 
@@ -36,22 +36,23 @@ private val FILLER_WORDS = listOf("the", "be", "to", "is", "of", "and", "or", "a
 class NectarViewModel @Inject constructor(
     private val auth: FirebaseAuth,
     private val storage: FirebaseStorage,
-    private val repository: UserRepository,
-    private val firestore: FirebaseFirestore
+    private val userRepository: UserRepository,
+    private val plantsRepository: PlantsRepository,
+    private val careLogRepository: CareLogRepository,
 ) : ViewModel() {
     val signedIn = mutableStateOf(false)
     val isLoading = mutableStateOf(false)
     val userData = mutableStateOf<UserData?>(null)
     val popupNotification = mutableStateOf<Event<String>?>(null)
 
-    val refreshPostsProgress = mutableStateOf(false)
-    val posts = mutableStateOf<List<PlantData>>(listOf())
+    val refreshPlantsProgress = mutableStateOf(false)
+    val plants = mutableStateOf<List<PlantData>>(listOf())
 
-    val searchedPosts = mutableStateOf<List<PlantData>>(listOf())
-    val searchedPostsProgress = mutableStateOf(false)
+    val searchedPlants = mutableStateOf<List<PlantData>>(listOf())
+    val searchedPlantsProgress = mutableStateOf(false)
 
-    val postsFeed = mutableStateOf<List<PlantData>>(listOf())
-    val postsFeedProgress = mutableStateOf(false)
+    val plantsFeed = mutableStateOf<List<PlantData>>(listOf())
+    val plantsFeedProgress = mutableStateOf(false)
 
     val careLogEntries = mutableStateOf<List<CareLogEntry>>(listOf())
     val careLogEntriesProgress = mutableStateOf(false)
@@ -63,45 +64,57 @@ class NectarViewModel @Inject constructor(
     init {
         val currentUser = auth.currentUser
         signedIn.value = currentUser != null
-        currentUser?.uid?.let { authId ->
-            getUserData(authId = authId)
+        Log.i(TAG, "SIGNED IN: ${signedIn.value}")
+        if (currentUser != null) {
+            getUserData(id = currentUser.uid)
         }
+        if (currentUser != null) {
+            Log.i(TAG, currentUser.uid)
+        } else {
+            Log.i(TAG, "CURRENT USER IS NULL")
+        }
+
     }
 
-    private fun getUserData(authId: String) {
+    private fun getUserData(id: String) {
         isLoading.value = true
-        firestore.collection("users").document(authId).get()
-            .addOnSuccessListener {
-                val user = it.toObject<UserData>()
+        Log.i(TAG, "requesting user info")
+        withAuth { token: String ->
+            viewModelScope.launch(Dispatchers.Main) {
+                val response = userRepository.getUserById(token, id)
+                if (response is Resource.Error || response.data == null) {
+                    Log.e(TAG, "ERROR: ${response.message}")
+                    response.message?.let { handleException(null, it) }
+                    isLoading.value = false
+                    return@launch
+                }
+                val user = response.data
+                Log.i(TAG, user.toString())
                 userData.value = user
                 isLoading.value = false
                 refreshPosts()
-                getFollowers(user?.authId)
             }
-            .addOnFailureListener { exception ->
-                handleException(exception, "Cannot retrieve user data")
-                isLoading.value = false
-            }
+        }
     }
 
     fun onLogin(email: String, pass: String) {
         if (email.isEmpty() or pass.isEmpty()) {
-            handleException(customMessage = "Please fill in all fields")
+            handleException(message = "Please fill in all fields")
             return
         }
         isLoading.value = true
         auth.signInWithEmailAndPassword(email, pass)
             .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    signedIn.value = true
-                    isLoading.value = false
-                    auth.currentUser?.uid?.let { uid ->
-                        getUserData(uid)
-                        handleException(customMessage = "Login successful")
-                    }
-                } else {
+                if (!task.isSuccessful) {
                     handleException(task.exception, "Login failed")
                     isLoading.value = false
+                    return@addOnCompleteListener
+                }
+                signedIn.value = true
+                isLoading.value = false
+                auth.currentUser?.uid?.let { uid ->
+                    getUserData(uid)
+                    showMessage(message = "Login successful")
                 }
             }
             .addOnFailureListener { exception ->
@@ -112,112 +125,125 @@ class NectarViewModel @Inject constructor(
 
     fun onSignUp(username: String, email: String, password: String) {
         if (username.isEmpty() or email.isEmpty() or password.isEmpty()) {
-            handleException(customMessage = "Please fill in all fields")
+            handleException(message = "Please fill in all fields")
             return
         }
         viewModelScope.launch {
             isLoading.value = true
-
             //Check if username is taken
-            firestore.collection("users").whereEqualTo("username", username).get()
-                .addOnSuccessListener { userList ->
-                    if (userList.size() > 0) {
-                        handleException(customMessage = "Username already exists")
-                        isLoading.value = false
-                    } else {
-                        auth.createUserWithEmailAndPassword(email, password)
-                            .addOnCompleteListener { task ->
-                                if (task.isSuccessful) {
-                                    signedIn.value = true
-                                    //Create Profile
-                                    createOrUpdateProfile(username = username, email = email)
-                                } else {
-                                    handleException(task.exception, "Signup Failed")
-                                }
-                            }
-                    }
-                }
-
+            val res = userRepository.checkIfUsernameIsTaken(username)
+            if (res is Resource.Error) {
+                handleException(message = "Username already exists")
+                isLoading.value = false
+                return@launch
+            }
+            val req = CreateUserRequest(
+                username = username,
+                email = email,
+                name = "",
+                password = password
+            )
+            val createUserResponse = userRepository.createUser(req)
+            if (createUserResponse is Resource.Error) {
+                handleException(null, "Signup Failed")
+                isLoading.value = false
+                return@launch
+            }
+            isLoading.value = false
+            signedIn.value = true
+            userData.value = createUserResponse.data
+            onLogin(email, password)
         }
     }
 
-    private fun createOrUpdateProfile(
+    private fun withAuth(execute: (token: String) -> Job) {
+        val task = auth.currentUser?.getIdToken(true) ?: throw Exception("Could not get auth token")
+        task.addOnSuccessListener {
+            val token = it.token.toString()
+            execute("Bearer $token")
+        }.addOnFailureListener {
+            throw Exception("Could not get auth token")
+        }
+    }
+
+    fun updateUserInfo(
         name: String? = null,
         username: String? = null,
         email: String? = null,
         imageUrl: String? = null,
     ) {
-        val authId = auth.currentUser?.uid
-        val user = UserData(
-            authId = authId,
-            name = name ?: userData.value?.name,
-            username = username ?: userData.value?.username,
-            email = email ?: userData.value?.email,
-            imageUrl = imageUrl ?: userData.value?.imageUrl
-        )
-
-        authId?.let { id ->
-            isLoading.value = true
-            firestore.collection("users").document(id).get()
-                .addOnSuccessListener { fetchedUser ->
-                    if (!fetchedUser.exists()) {
-                        firestore.collection("users").document(id).set(user)
-                        getUserData(id)
-                        isLoading.value = false
-                    } else {
-                        fetchedUser.reference.update(user.toMap())
-                            .addOnSuccessListener {
-                                this.userData.value = user
-                                isLoading.value = false
-                            }
-                            .addOnFailureListener { e ->
-                                handleException(e, "Cannot update user")
-                                isLoading.value = false
-                            }
-                    }
-                }.addOnFailureListener { exception ->
-                    handleException(e = exception, customMessage = "Cannot Create User")
-                    isLoading.value = false
-                }
+        val currentUser = userData.value
+        val id = auth.currentUser?.uid
+        if (currentUser == null) {
+            Log.e(TAG, "current user is null")
+            handleException(message = "An error occurred. Signing you out")
+            onLogout()
+            return
         }
-    }
-
-    private fun convertPosts(
-        postsSnapshot: QuerySnapshot,
-        outState: MutableState<List<PlantData>>
-    ) {
-        val convertedPosts = postsSnapshot
-            .map { p ->
-                p.toObject<PlantData>()
+        if (id == null) {
+            Log.e(TAG, "id is null")
+            handleException(message = "An error occurred. Signing you out")
+            onLogout()
+            return
+        }
+        val req = UpdateUserRequest(
+            name = name ?: currentUser.name!!,
+            username = username ?: currentUser.username!!,
+            email = email ?: currentUser.email!!,
+            imageUrl = imageUrl ?: currentUser.imageUrl
+        )
+        isLoading.value = true
+        withAuth { token: String ->
+            viewModelScope.launch {
+                val res = userRepository.updateUser(token, id, req)
+                if (res is Resource.Error) {
+                    handleException(res.exception, "An error occurred, could not update user")
+                    isLoading.value = false
+                    return@launch
+                }
+                val updatedUser = res.data
+                userData.value = updatedUser
+                isLoading.value = false
             }
-            .toMutableList()
-        outState.value = convertedPosts
+        }
     }
 
     private fun refreshPosts() {
         val currentUid = auth.currentUser?.uid
-
         if (currentUid == null) {
-            handleException(customMessage = "Error: username unavailable, unable to refresh posts")
+            handleException(message = "Error: username unavailable, unable to refresh posts")
             onLogout()
             return
         }
-
-        refreshPostsProgress.value = true
-        firestore.collection(POSTS).whereEqualTo("userId", currentUid).get()
-            .addOnSuccessListener { docs ->
-                convertPosts(docs, posts)
-                refreshPostsProgress.value = false
-            }
-            .addOnFailureListener { e ->
-                handleException(e, "Cannot fetch plants")
-                refreshPostsProgress.value = false
-            }
+        refreshPlantsProgress.value = true
+        getPlantsByUserId(currentUid) { plantList ->
+            plants.value = plantList
+            refreshPlantsProgress.value = false
+        }
 
     }
 
-    fun updateProfile(name: String, username: String) {
-        createOrUpdateProfile(name = name, username = username)
+    private fun getPlantsByUserId(userUid: String, onSuccess: (List<PlantData>) -> Unit) {
+        withAuth { token: String ->
+            viewModelScope.launch(Dispatchers.Main) {
+                val res = plantsRepository.getPlantsByUserId(token, userUid)
+                if (res is Resource.Error) {
+                    if (res.exception is UnauthorizedException) {
+                        onLogout()
+                    }
+                    handleException(null, "Cannot fetch plants")
+                    refreshPlantsProgress.value = false
+                    return@launch
+                }
+                val plantsRes = res.data
+                if (plantsRes == null) {
+                    handleException(null, "could not fetch your plant collection")
+                    refreshPlantsProgress.value = false
+                    return@launch
+                }
+                onSuccess(plantsRes.plants)
+            }
+        }
     }
 
     private fun uploadImage(uri: Uri, onSuccess: (Uri) -> Unit) {
@@ -241,7 +267,7 @@ class NectarViewModel @Inject constructor(
 
     fun uploadProfileImage(uri: Uri): String? {
         uploadImage(uri) {
-            createOrUpdateProfile(imageUrl = it.toString())
+            updateUserInfo(imageUrl = it.toString())
         }
         isLoading.value = false
         val updatedUser = userData.value
@@ -249,127 +275,100 @@ class NectarViewModel @Inject constructor(
     }
 
     fun fetchPlantById(id: String?) {
-        isLoading.value = true
-        if (id == null) {
-            currentPlant.value = null
-        }
-        viewModelScope.launch(Dispatchers.Main) {
-            firestore.collection(POSTS).document(id!!).get()
-                .addOnSuccessListener {
-                    currentPlant.value = it.toObject<PlantData>()
-                    refreshPosts()
-                    isLoading.value = false
+        withAuth { token: String ->
+            isLoading.value = true
+            viewModelScope.launch(Dispatchers.Main) {
+                if (id == null) {
+                    currentPlant.value = null
+                    return@launch
                 }
-                .addOnFailureListener { e ->
-                    handleException(e, "Unable to fetch plant data")
+                val res = plantsRepository.getPlantById(token, id)
+                if (res is Resource.Error) {
+                    handleException(null, "Unable to fetch plant data")
                     isLoading.value = false
+                    return@launch
                 }
+                currentPlant.value = res.data
+                refreshPosts()
+                isLoading.value = false
+                return@launch
+            }
         }
     }
 
     fun onUpdatePlant(
         originalPlant: PlantData,
-        uris: List<Uri?>,
-        commonName: String,
-        scientificName: String?,
-        toxicity: String?
-    ) {
-        viewModelScope.launch(Dispatchers.Main) {
-            onEditPlantAsync(originalPlant, uris, commonName, scientificName, toxicity)
-        }
-    }
-
-    private suspend fun onEditPlantAsync(
-        originalPlant: PlantData,
-        uris: List<Uri?>,
-        commonName: String,
-        scientificName: String?,
-        toxicity: String?
+        newUris: List<Uri?>,
+        newCommonName: String,
+        newScientificName: String?,
+        newToxicity: String?
     ) {
         isLoading.value = true
-        if (originalPlant.plantId == null) {
-            handleException(customMessage = "Error: unable to update plant")
-            isLoading.value = false
-            return
-        }
-        val currentUid = auth.currentUser?.uid
-        if (currentUid == null) {
-            handleException(customMessage = "Error: username unavailable. unable to update post")
-            onLogout()
-            isLoading.value = false
-            return
-        }
-
-        val originalImages = originalPlant.images
-        val resultUris = uploadImages(uris)
-        val updatedUris = mutableListOf<String>()
-        if (originalImages != null) {
-            for (i in resultUris.indices) {
-                val currentResultUri = resultUris[i]
-                if (currentResultUri != null) {
-                    updatedUris.add(currentResultUri.toString())
-                } else if (i < originalImages.size) {
-                    updatedUris.add(originalImages[i])
+        withAuth { token: String ->
+            viewModelScope.launch(Dispatchers.Main) {
+                val originalImages = originalPlant.images
+                val resultUris = uploadImages(newUris)
+                val updatedUris = mutableListOf<String>()
+                if (originalImages != null) {
+                    for (i in resultUris.indices) {
+                        val currentResultUri = resultUris[i]
+                        if (currentResultUri != null) {
+                            updatedUris.add(currentResultUri.toString())
+                        } else if (i < originalImages.size) {
+                            updatedUris.add(originalImages[i])
+                        }
+                    }
+                } else {
+                    updatedUris.addAll(resultUris
+                        .filterNotNull()
+                        .map { uri -> uri.toString() }
+                        .filter { uri -> uri.isNotEmpty() }
+                        .toMutableList())
                 }
-            }
-        } else {
-            updatedUris.addAll(resultUris
-                .filterNotNull()
-                .map { uri -> uri.toString() }
-                .filter { uri -> uri.isNotEmpty() }
-                .toMutableList())
-        }
+                val updatedPlant = originalPlant
+                updatedPlant.commonName = newCommonName
+                updatedPlant.scientificName = newScientificName
+                updatedPlant.toxicity = newToxicity
+                updatedPlant.images = updatedUris
 
-        originalPlant.commonName = commonName
-        originalPlant.scientificName = scientificName
-        originalPlant.toxicity = toxicity
-        originalPlant.searchTerms = commonName
-            .split(" ", ".", ",", "?", "!", "#")
-            .map { it.lowercase() }
-            .filter { it.isNotEmpty() and !FILLER_WORDS.contains(it) }
-        val plantDataMap = originalPlant.toMap().toMutableMap()
-
-        plantDataMap["images"] = updatedUris
-
-        Log.i(TAG, plantDataMap.toString())
-
-        firestore.collection(POSTS).document(originalPlant.plantId).update(plantDataMap)
-            .addOnSuccessListener {
+                Log.i(TAG, updatedPlant.toString())
+                val res = plantsRepository.updatePlant(token, updatedPlant, originalPlant.plantId!!)
+                if (res is Resource.Error) {
+                    handleException(null, "Unable to update plant")
+                    isLoading.value = false
+                    return@launch
+                }
                 popupNotification.value = Event("Plant successfully updated")
                 isLoading.value = false
                 refreshPosts()
             }
-            .addOnFailureListener { e ->
-                handleException(e, "Unable to update post")
-                isLoading.value = false
-            }
+        }
     }
 
     fun onDeletePlant(plantToBeDeleted: PlantData) {
-        viewModelScope.launch(Dispatchers.Main) {
-            onDeletePlantAsync(plantToBeDeleted)
-        }
-
-    }
-
-    private fun onDeletePlantAsync(plantToBeDeleted: PlantData) {
-        isLoading.value = true
-
-        //Delete plant from fire store
-        if (plantToBeDeleted.plantId == null) {
-            handleException(customMessage = "An error was encountered trying to delete plant")
-            return
-        }
-        firestore.collection(POSTS).document(plantToBeDeleted.plantId).delete()
-            .addOnSuccessListener {
+        withAuth { token: String ->
+            isLoading.value = true
+            viewModelScope.launch(Dispatchers.Main) {
+                //Delete plant from db
+                if (plantToBeDeleted.plantId == null) {
+                    handleException(message = "An error was encountered trying to delete plant")
+                    return@launch
+                }
+                val res = plantsRepository.deletePlant(token, plantToBeDeleted.plantId)
+                if (res is Resource.Error) {
+                    handleException(
+                        res.data as Exception?,
+                        "Unable to delete plant, please try again"
+                    )
+                    isLoading.value = false
+                    return@launch
+                }
                 popupNotification.value = Event("Plant successfully deleted")
                 isLoading.value = false
                 refreshPosts()
             }
-            .addOnFailureListener { e ->
-                handleException(e, "Unable to update post")
-                isLoading.value = false
-            }
+        }
+
     }
 
     fun onAddNewPlant(
@@ -378,60 +377,45 @@ class NectarViewModel @Inject constructor(
         scientificName: String?,
         toxicity: String?
     ) {
-        viewModelScope.launch(Dispatchers.Main) {
-            onAddNewPlantAsync(uris, commonName, scientificName, toxicity)
-        }
-    }
+        withAuth { token: String ->
+            viewModelScope.launch(Dispatchers.Main) {
+                isLoading.value = true
+                val uriList = uris.filter { uri -> uri.toString().isNotEmpty() }
+                val resultUris = uploadImages(uriList).filterNotNull()
 
-    private suspend fun onAddNewPlantAsync(
-        uris: List<Uri>,
-        commonName: String,
-        scientificName: String?,
-        toxicity: String?
-    ) {
-        isLoading.value = true
-        val uriList = uris.filter { uri -> uri.toString().isNotEmpty() }
-        val resultUris = uploadImages(uriList).filterNotNull()
+                val currentUid = auth.currentUser?.uid
 
-        val currentUid = auth.currentUser?.uid
-        val currentUsername = userData.value?.username
-        val currentUserImage = userData.value?.imageUrl
+                if (currentUid == null) {
+                    handleException(message = "Error: username unavailable. unable to create post")
+                    onLogout()
+                    isLoading.value = false
+                    return@launch
+                }
+                val searchTerms = commonName
+                    .split(" ", ".", ",", "?", "!", "#")
+                    .map { it.lowercase() }
+                    .filter { it.isNotEmpty() and !FILLER_WORDS.contains(it) }
+                val newPlant = PlantData(
+                    commonName = commonName,
+                    scientificName = scientificName,
+                    toxicity = toxicity,
+                    userId = currentUid,
+                    images = resultUris.map { uri -> uri.toString() }
 
-        if (currentUid == null) {
-            handleException(customMessage = "Error: username unavailable. unable to create post")
-            onLogout()
-            isLoading.value = false
-            return
-        }
+                )
+                Log.i(TAG, newPlant.toString())
 
-        val postUuid = UUID.randomUUID().toString()
-
-        val post = PlantData(
-            plantId = postUuid,
-            commonName = commonName,
-            scientificName = scientificName,
-            toxicity = toxicity,
-            userId = currentUid,
-            username = currentUsername,
-            userImage = currentUserImage,
-            images = resultUris.map { uri -> uri.toString() },
-            likes = listOf(),
-            searchTerms = commonName
-                .split(" ", ".", ",", "?", "!", "#")
-                .map { it.lowercase() }
-                .filter { it.isNotEmpty() and !FILLER_WORDS.contains(it) }
-        )
-        Log.i(TAG, post.toString())
-        firestore.collection(POSTS).document(postUuid).set(post)
-            .addOnSuccessListener {
-                popupNotification.value = Event("Post successfully created")
+                val response = plantsRepository.createPlant(token, newPlant)
+                if (response is Resource.Error) {
+                    handleException(null, "Unable to create plant")
+                    isLoading.value = false
+                    return@launch
+                }
+                popupNotification.value = Event("Plant successfully created")
                 isLoading.value = false
                 refreshPosts()
             }
-            .addOnFailureListener { e ->
-                handleException(e, "Unable to create post")
-                isLoading.value = false
-            }
+        }
     }
 
     private suspend fun uploadImageAsync(uri: Uri, storageRef: StorageReference): Uri {
@@ -468,130 +452,73 @@ class NectarViewModel @Inject constructor(
         signedIn.value = false
         userData.value = null
         popupNotification.value = Event("Logged out")
-        searchedPosts.value = listOf()
-        postsFeed.value = listOf()
-        posts.value = listOf()
+        searchedPlants.value = listOf()
+        plantsFeed.value = listOf()
+        plants.value = listOf()
         careLogEntries.value = listOf()
         numFollowers.value = 0
     }
 
-    fun searchPosts(searchTerm: String) {
+    fun searchPlants(searchTerm: String) {
+        val userId = userData.value?.id!!
         if (searchTerm.isEmpty()) {
+            searchedPlants.value = listOf()
             return
         }
-        searchedPostsProgress.value = true
-        firestore
-            .collection(POSTS)
-            .whereArrayContains("searchTerms", searchTerm.trim().lowercase())
-            .get()
-            .addOnSuccessListener {
-                searchedPosts.value = convertPosts(it)
-                searchedPostsProgress.value = false
-            }
-            .addOnFailureListener { e ->
-                handleException(e, customMessage = "Cannot search plants")
-                searchedPostsProgress.value = false
-            }
-    }
-
-    private fun convertPosts(postsSnapshot: QuerySnapshot): MutableList<PlantData> {
-        return postsSnapshot
-            .map { p ->
-                p.toObject<PlantData>()
-            }
-            .toMutableList()
-    }
-
-    fun onFollowClick(userId: String) {
-        auth.currentUser?.uid?.let { currentUser ->
-            val following = arrayListOf<String>()
-            userData.value?.following.let {
-                if (it != null) {
-                    following.addAll(it)
+        withAuth { token: String ->
+            isLoading.value = true
+            viewModelScope.launch(Dispatchers.Main) {
+                val res = plantsRepository.searchPlants(token, userId, searchTerm)
+                if (res is Resource.Error) {
+                    isLoading.value = false
+                    handleException(res.exception, "Could not search plants, try again")
+                    return@launch
                 }
+                isLoading.value = false
+                searchedPlants.value = res.data ?: listOf()
             }
-            if (following.contains(userId)) {
-                following.remove(userId)
-            } else {
-                following.add(userId)
-            }
-            firestore.collection("users").document(currentUser).update("following", following)
-                .addOnSuccessListener {
-                    getUserData(currentUser)
-                }
         }
     }
 
-    private fun handleException(e: Exception? = null, customMessage: String = "") {
-        e?.printStackTrace()
+    private fun handleException(e: Exception? = null, message: String = "") {
+        if (e != null) {
+            Log.e(TAG, e.stackTraceToString())
+        }
         val errMessage = e?.localizedMessage ?: ""
-        val message = if (customMessage.isEmpty()) errMessage else "$customMessage $errMessage"
-        Log.i(TAG, message)
+        val msg = if (message.isEmpty()) errMessage else "$message $errMessage"
+        Log.i(TAG, msg)
+        showMessage(msg)
+    }
+
+    private fun showMessage(message: String) {
         popupNotification.value = Event(message)
     }
 
-    fun getPersonalizedFeed() {
-        val following = userData.value?.following
-        if (!following.isNullOrEmpty()) {
-            postsFeedProgress.value = true
-            firestore.collection(POSTS).whereIn("userId", following).get()
-                .addOnSuccessListener { res ->
-                    postsFeed.value = convertPosts(res)
-                    if (postsFeed.value.isEmpty()) {
-                        getGenericFeed()
-                        postsFeedProgress.value = false
-                    } else {
-                        postsFeedProgress.value = false
-                    }
-                }
-                .addOnFailureListener { e ->
-                    handleException(e, "Cannot get personalized feed")
-                    postsFeedProgress.value = false
-                }
-        } else {
-            getGenericFeed()
+    private fun refreshCareLogEntries(plantId: String) {
+        refreshPlantsProgress.value = true
+        getCareLogEntries(plantId) { logs ->
+            careLogEntries.value = logs
         }
+
     }
 
-    private fun getGenericFeed() {
-        postsFeedProgress.value = true
-        val currentTime = System.currentTimeMillis()
-        val dayInMills = 24 * 60 * 60 * 1000 * 10
-        firestore.collection(POSTS)
-            .whereGreaterThan("time", currentTime - dayInMills)
-            .get()
-            .addOnSuccessListener { res ->
-                postsFeed.value = convertPosts(res)
-                postsFeedProgress.value = false
-            }
-            .addOnFailureListener { e ->
-                postsFeedProgress.value = false
-                handleException(e, "unable to get feed")
-            }
-    }
-
-    fun onLikePost(plantData: PlantData) {
-        auth.currentUser?.uid?.let { currentUserId ->
-            plantData.likes?.let { likes ->
-                val newLikes = arrayListOf<String>()
-                if (likes.contains(currentUserId)) {
-                    newLikes.addAll(likes.filter { currentUserId != it })
-                } else {
-                    newLikes.addAll(likes)
-                    newLikes.add(currentUserId)
+    fun getCareLogEntries(plantId: String, onSuccess: ((logs: List<CareLogEntry>) -> Unit)?) {
+        withAuth { token: String ->
+            careLogEntriesProgress.value = true
+            viewModelScope.launch(Dispatchers.Main) {
+                val res = careLogRepository.getCareLogsByPlantId(token, plantId)
+                careLogEntriesProgress.value = false
+                if (res is Resource.Error) {
+                    handleException(res.exception, "Could not get care log entries")
+                    return@launch
                 }
-                plantData.plantId?.let { postId ->
-                    firestore
-                        .collection(POSTS)
-                        .document(postId)
-                        .update("likes", newLikes)
-                        .addOnSuccessListener {
-                            plantData.likes = newLikes
-                        }
-                        .addOnFailureListener {
-                            handleException(it, "unable to like post")
-                        }
+                if (onSuccess == null) {
+                    careLogEntriesProgress.value = false
+                    careLogEntries.value = res.data ?: listOf()
+                    return@launch
                 }
+                careLogEntriesProgress.value = false
+                onSuccess(res.data ?: listOf())
             }
         }
     }
@@ -602,53 +529,63 @@ class NectarViewModel @Inject constructor(
         wasFertilized: Boolean,
         notes: String?,
     ) {
-        val entryId = UUID.randomUUID().toString()
-        val entry = CareLogEntry(
-            id = entryId,
+        val careLogRequest = CareLogRequest(
             plantId = plantId,
             wasWatered = wasWatered,
             wasFertilized = wasFertilized,
-            notes = notes,
-            timestamp = System.currentTimeMillis()
+            notes = notes
         )
-        firestore.collection(CARE).document(entryId).set(entry)
-            .addOnSuccessListener {
-                //Get existing care log entries
-                getCareLogEntries(plantId)
-            }
-            .addOnFailureListener { e ->
-                handleException(e, "Cannot create care log entry")
-            }
-    }
-
-    fun getCareLogEntries(plantId: String?) {
-        careLogEntriesProgress.value = true
-        firestore.collection(CARE).whereEqualTo("plantId", plantId).get()
-            .addOnSuccessListener { documents ->
-                val entries = mutableListOf<CareLogEntry>()
-                documents.forEach { document ->
-                    Log.i("getCareLogEntries", document.toString())
-                    val entry = document.toObject<CareLogEntry>()
-                    entries.add(entry)
+        withAuth { token: String ->
+            isLoading.value = true
+            viewModelScope.launch(Dispatchers.Main) {
+                Log.i(TAG, careLogRequest.toString())
+                val res = careLogRepository.createCareLogEntry(token, careLogRequest)
+                isLoading.value = false
+                if (res is Resource.Error) {
+                    handleException(
+                        res.exception,
+                        "Could not create care log entry, please try again"
+                    )
+                    return@launch
                 }
-                val sortedEntries = entries.sortedByDescending { it.timestamp }
-                careLogEntries.value = sortedEntries
-                careLogEntriesProgress.value = false
+                showMessage("Successfully added care log entry")
             }
-            .addOnFailureListener { e ->
-                handleException(e, "cannot retrieve care log entries")
-                careLogEntriesProgress.value = false
-            }
+        }
     }
 
-    private fun getFollowers(uid: String?) {
-        firestore.collection(USERS).whereArrayContains("following", uid ?: "").get()
-            .addOnSuccessListener { documents ->
-                numFollowers.value = documents.size()
+    fun deleteCareLogEntry(careLogId: String) {
+        withAuth { token: String ->
+            viewModelScope.launch(Dispatchers.Main) {
+                isLoading.value = true
+                val res = careLogRepository.deleteCareLogEntry(token, careLogId)
+                isLoading.value = false
+                if (res is Resource.Error) {
+                    handleException(
+                        res.exception,
+                        "Could not delete care log entry, please try again"
+                    )
+                    return@launch
+                }
+                showMessage("Successfully deleted care log entry")
             }
-            .addOnFailureListener { e ->
-                handleException(e)
-            }
+        }
     }
 
+    fun updateCareLogEntry(id: String, careLogEntry: CareLogEntry) {
+        withAuth { token: String ->
+            viewModelScope.launch(Dispatchers.Main) {
+                isLoading.value = true
+                val res = careLogRepository.updateCareLogEntry(token, id, careLogEntry)
+                isLoading.value = false
+                if (res is Resource.Error) {
+                    handleException(
+                        res.exception,
+                        "Could not delete care log entry, please try again"
+                    )
+                    return@launch
+                }
+                showMessage("Successfully deleted care log entry")
+            }
+        }
+    }
 }

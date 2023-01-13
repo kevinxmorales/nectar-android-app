@@ -1,10 +1,10 @@
 package com.morales.nectar.repository
 
-import android.util.Log
+import com.morales.nectar.data.models.UserData
 import com.morales.nectar.data.remote.UserApi
-import com.morales.nectar.data.remote.requests.CreateUserRequest
-import com.morales.nectar.data.remote.responses.TakenUsernameResponse
-import com.morales.nectar.data.remote.responses.UserDataResponse
+import com.morales.nectar.data.remote.requests.user.CreateUserRequest
+import com.morales.nectar.data.remote.requests.user.UpdateUserRequest
+import com.morales.nectar.data.remote.responses.TakenUsernameCheck
 import com.morales.nectar.util.Resource
 import dagger.hilt.android.scopes.ActivityScoped
 import javax.inject.Inject
@@ -13,47 +13,28 @@ private const val TAG = "UserRepository"
 
 @ActivityScoped
 class UserRepository
-    @Inject constructor(private val api: UserApi) {
+@Inject constructor(private val api: UserApi) {
 
-    suspend fun checkIfUsernameIsTaken(username: String): Resource<TakenUsernameResponse> {
-        val response = try {
-            api.checkIfUsernameIsTaken(username = username)
-        } catch(e: Exception) {
-            Log.e(TAG, e.toString())
-            return Resource.Error("An unknown error occurred.")
-        }
-        return Resource.Success(response)
+    suspend fun checkIfUsernameIsTaken(username: String): Resource<TakenUsernameCheck> {
+        return executeRequest { api.checkIfUsernameIsTaken(username) }
     }
 
-    suspend fun getUserWithAuthId(authId: String): Resource<UserDataResponse> {
-        val response = try {
-            api.getUserWithAuthId(authId = authId)
-        } catch(e: Exception) {
-            Log.e(TAG, e.toString())
-            return Resource.Error("An unknown error occurred.")
-        }
-        return Resource.Success(response)
+    suspend fun getUserById(token: String, id: String): Resource<UserData> {
+        return executeRequest { api.getUserById(token, id) }
     }
 
-    suspend fun createUser(newUser: CreateUserRequest): Resource<UserDataResponse> {
-        val response = try {
-            Log.i(TAG, newUser.toString())
-            api.createUser(newUser = newUser)
-        } catch(e: Exception) {
-            Log.e(TAG, e.toString())
-            return Resource.Error("An unknown error occurred.")
-        }
-        return Resource.Success(response)
+    suspend fun createUser(
+        newUser: CreateUserRequest
+    ): Resource<UserData> {
+        return executeRequest { api.createUser(newUser) }
     }
 
-    suspend fun updateUser(id: Int, updatedUser: CreateUserRequest): Resource<UserDataResponse> {
-        val response = try {
-            Log.i(TAG, updatedUser.toString())
-            api.updateUser(id = id, newUser = updatedUser)
-        } catch(e: Exception) {
-            Log.e(TAG, e.toString())
-            return Resource.Error("An unknown error occurred.")
-        }
-        return Resource.Success(response)
+    suspend fun updateUser(
+        token: String,
+        id: String,
+        updatedUser: UpdateUserRequest
+    ): Resource<UserData> {
+        return executeRequest { api.updateUser(token, id, updatedUser) }
     }
 }
+

@@ -1,13 +1,19 @@
-package com.morales.nectar.screens.login
+package com.morales.nectar.screens.auth
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.Button
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
+import androidx.compose.material.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,10 +30,10 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.morales.nectar.DestinationScreen
 import com.morales.nectar.R
+import com.morales.nectar.composables.NectarSubmitButton
 import com.morales.nectar.composables.ProgressSpinner
 import com.morales.nectar.navigation.navigateTo
 import com.morales.nectar.screens.NectarViewModel
-import com.morales.nectar.screens.auth.CheckSignedIn
 
 @Composable
 fun LoginScreen(
@@ -36,6 +42,7 @@ fun LoginScreen(
 ) {
     CheckSignedIn(navController = navController, vm = vm)
     val focus = LocalFocusManager.current
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -46,6 +53,11 @@ fun LoginScreen(
         ) {
             val emailState = remember { mutableStateOf(TextFieldValue()) }
             val passState = remember { mutableStateOf(TextFieldValue()) }
+
+            val onClick = {
+                focus.clearFocus(force = true)
+                vm.onLogin(emailState.value.text, passState.value.text)
+            }
 
             Image(
                 painter = painterResource(id = R.drawable.logo2),
@@ -65,25 +77,27 @@ fun LoginScreen(
             OutlinedTextField(
                 value = emailState.value,
                 onValueChange = { emailState.value = it },
-                modifier = Modifier.padding(8.dp),
-                label = { Text("Email") }
+                modifier = Modifier
+                    .padding(8.dp),
+                label = { Text("Email", color = Color.DarkGray) },
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    focusedBorderColor = Color.Black,
+                    unfocusedBorderColor = Color.Black
+                )
             )
             OutlinedTextField(
                 value = passState.value,
                 onValueChange = { passState.value = it },
                 modifier = Modifier.padding(8.dp),
-                label = { Text("Password") },
-                visualTransformation = PasswordVisualTransformation()
+                label = { Text("Password", color = Color.DarkGray) },
+                visualTransformation = PasswordVisualTransformation(),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    focusedBorderColor = Color.Black,
+                    unfocusedBorderColor = Color.Black
+                )
             )
-            Button(
-                onClick = {
-                    focus.clearFocus(force = true)
-                    vm.onLogin(emailState.value.text, passState.value.text)
-                },
-                modifier = Modifier.padding(8.dp)
-            ) {
-                Text(text = "LOGIN")
-            }
+            NectarSubmitButton(buttonText = "LOGIN", onClick = onClick)
+
             Text(text = "New here? Go sign up ->",
                 color = Color.Blue,
                 modifier = Modifier
@@ -96,5 +110,4 @@ fun LoginScreen(
             ProgressSpinner()
         }
     }
-
 }

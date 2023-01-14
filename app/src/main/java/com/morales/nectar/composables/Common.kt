@@ -217,10 +217,7 @@ fun NectarDatePicker(pickedDate: LocalDate, onClick: (LocalDate) -> Unit) {
     ) {
         datepicker(
             initialDate = LocalDate.now(),
-            title = "Pick a date",
-            allowedDateValidator = {
-                it.dayOfMonth % 2 == 1
-            }
+            title = "Pick a date"
         ) {
             onClick.invoke(it)
         }

@@ -21,6 +21,12 @@ interface CareLogApi {
         @Path("id") id: String
     ): Response<NectarResponseEntity<List<CareLogEntry>>>
 
+    @GET("plant-care/id/{id}")
+    suspend fun getCareLogsById(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): Response<NectarResponseEntity<CareLogEntry>>
+
     @POST("plant-care")
     suspend fun createCareLogEntry(
         @Header("Authorization") token: String,

@@ -152,6 +152,7 @@ fun CreateNewPlantScreen(
                 value = toxicity
             )
             NectarDatePicker(pickedDate = pickedDate, onClick = onDatePicked)
+            Text(text = "Common Name : $plantName | Scientific Name: $scientificName | Toxicity: $toxicity | Date: $pickedDate")
         }
     }
 }

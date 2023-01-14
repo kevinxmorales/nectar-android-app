@@ -39,7 +39,6 @@ fun SinglePlantScreen(
     p: PlantData,
     vm: NectarViewModel,
 ) {
-    val currentPlant = p
     val scrollState = rememberScrollState()
     val getPlant = {
         vm.fetchPlantById(p.plantId)
@@ -47,14 +46,14 @@ fun SinglePlantScreen(
     }
 
     val onDelete = {
-        vm.onDeletePlant(currentPlant)
+        vm.onDeletePlant(p)
     }
 
     val onUpdate = {
         navigateTo(
             navController,
-            DestinationScreen.EditPlantScreen,
-            NavParam("plant", currentPlant)
+            DestinationScreen.EditPlant,
+            NavParam("plant", p)
         )
     }
 
@@ -76,7 +75,7 @@ fun SinglePlantScreen(
         SinglePostDisplay(
             navController,
             vm,
-            currentPlant,
+            p,
             scrollState
         )
     }
@@ -272,9 +271,11 @@ fun CareLogEntryList(
     vm: NectarViewModel,
     refreshScreen: () -> Unit
 ) {
-    val onUpdate = { id: String ->
-        navController.navigate(DestinationScreen.CareLogEntries.createRoute(id))
+
+    val onUpdate = { entry: CareLogEntry ->
+        navigateTo(navController, DestinationScreen.EditCareLogEntry, NavParam("entry", entry))
     }
+
     val onDelete = { id: String ->
         Log.i(TAG, id)
         vm.deleteCareLogEntry(id)
@@ -302,18 +303,14 @@ fun CareLogEntryList(
 @Composable
 fun CareLogEntryRow(
     entry: CareLogEntry,
-    onUpdate: (id: String) -> Unit,
+    onUpdate: (entry: CareLogEntry) -> Unit,
     onDelete: (id: String) -> Unit,
     refreshScreen: () -> Unit
 ) {
-    var menuExpanded by remember {
-        mutableStateOf(false)
-    }
+    var menuExpanded by remember { mutableStateOf(false) }
     val showDeleteDialog = remember { mutableStateOf(false) }
 
-    Row(
-        horizontalArrangement = Arrangement.End,
-    ) {
+    Row(horizontalArrangement = Arrangement.End) {
         if (showDeleteDialog.value) {
             ConfirmDeleteDialog(
                 onCancel = { showDeleteDialog.value = false },
@@ -329,8 +326,6 @@ fun CareLogEntryRow(
                 .fillMaxHeight()
                 .width(300.dp)
         ) {
-            //val simpleDateFormat = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
-            //val dateString = simpleDateFormat.format(entry.date?.split("T")?.get(0))
             Text(text = "Date: ${entry.date?.split("T")?.get(0)}", fontWeight = FontWeight.Bold)
             Text(text = "Watered: ${if (entry.wasWatered == true) "Yes" else "No"}")
             Text(text = "Fertilized: ${if (entry.wasFertilized == true) "Yes" else "No"}")
@@ -359,7 +354,7 @@ fun CareLogEntryRow(
                     // 6
                     DropdownMenuItem(
                         onClick = {
-                            onUpdate.invoke(entry.id!!)
+                            onUpdate.invoke(entry)
                         }
                     ) {
                         Text("Update")
@@ -374,35 +369,6 @@ fun CareLogEntryRow(
                 }
             }
         }
-        /*
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(50.dp),
-            verticalArrangement = Arrangement.SpaceEvenly
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_edit),
-                contentDescription = "edit button",
-                modifier = Modifier
-                    .padding(bottom = 10.dp)
-                    .size(25.dp)
-                    .clickable { onUpdate.invoke(entry.id!!) },
-                colorFilter = ColorFilter.tint(Color.Black)
-            )
-            CommonDivider()
-            Image(
-                painter = painterResource(id = R.drawable.ic_delete),
-                contentDescription = "delete button",
-                modifier = Modifier
-                    .padding(bottom = 10.dp)
-                    .size(25.dp)
-                    .clickable { showDeleteDialog.value = true },
-                colorFilter = ColorFilter.tint(Color.Black)
-            )
-        }
-
-         */
     }
 }
 

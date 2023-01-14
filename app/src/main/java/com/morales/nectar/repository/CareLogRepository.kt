@@ -20,6 +20,13 @@ class CareLogRepository
         return executeRequest { api.getCareLogsByPlantId(token, id) }
     }
 
+    suspend fun getCareLogsById(
+        token: String,
+        id: String
+    ): Resource<CareLogEntry> {
+        return executeRequest { api.getCareLogsById(token, id) }
+    }
+
     suspend fun updateCareLogEntry(
         token: String,
         id: String,

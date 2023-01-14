@@ -59,7 +59,9 @@ class NectarViewModel @Inject constructor(
 
     val numFollowers = mutableStateOf(0)
 
-    val currentPlant = mutableStateOf<PlantData?>(null)
+    private val currentPlant = mutableStateOf<PlantData?>(null)
+
+    val currentCareLogEntry = mutableStateOf<CareLogEntry?>(null)
 
     init {
         val currentUser = auth.currentUser
@@ -523,6 +525,22 @@ class NectarViewModel @Inject constructor(
         }
     }
 
+    fun getCareLogEntryById(id: String) {
+        withAuth { token: String ->
+            isLoading.value = true
+            viewModelScope.launch(Dispatchers.Main) {
+                val res = careLogRepository.getCareLogsById(token, id)
+                isLoading.value = false
+                if (res is Resource.Error) {
+                    handleException(res.exception, "Could not get care log entry")
+                    return@launch
+                }
+                currentCareLogEntry.value = res.data
+            }
+        }
+    }
+
+
     fun createCareLogEntry(
         plantId: String,
         wasWatered: Boolean,
@@ -580,11 +598,11 @@ class NectarViewModel @Inject constructor(
                 if (res is Resource.Error) {
                     handleException(
                         res.exception,
-                        "Could not delete care log entry, please try again"
+                        "Could not update care log entry, please try again"
                     )
                     return@launch
                 }
-                showMessage("Successfully deleted care log entry")
+                showMessage("Successfully update care log entry")
             }
         }
     }

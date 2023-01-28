@@ -181,7 +181,7 @@ fun ProfileImage(imageUrl: String?, vm: NectarViewModel) {
                     .size(100.dp),
                 shape = CircleShape
             ) {
-                CommonImage(data = imageUrl, contentDescription = "your current profile image")
+                CommonImage(uri = imageUrl, contentDescription = "your current profile image")
             }
             Text(text = "Change profile picture")
         }

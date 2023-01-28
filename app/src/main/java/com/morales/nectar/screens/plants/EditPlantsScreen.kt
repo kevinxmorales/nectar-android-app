@@ -154,19 +154,22 @@ fun EditPlantScreen(
                 label = "Common Name: e.g. Monstera Albo",
                 text = "Common Name",
                 onValueChange = { plantName = it },
-                value = plantName
+                value = plantName,
+                focusManager = focusManager
             )
             PlantTextFieldRow(
                 label = "Scientific Name: e.g. Monstera deliciosa ",
                 text = "Scientific Name",
                 onValueChange = { scientificName = it },
-                value = scientificName
+                value = scientificName,
+                focusManager = focusManager
             )
             PlantTextFieldRow(
                 label = "Toxicity: e.g. Toxic to Pets",
                 text = "Toxicity",
                 onValueChange = { toxicity = it },
-                value = toxicity
+                value = toxicity,
+                focusManager = focusManager
             )
         }
     }

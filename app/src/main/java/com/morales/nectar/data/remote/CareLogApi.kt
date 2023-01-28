@@ -1,7 +1,8 @@
 package com.morales.nectar.data.remote
 
-import com.morales.nectar.data.models.CareLogEntry
+import com.morales.nectar.data.models.CareLog
 import com.morales.nectar.data.remote.requests.care.CareLogRequest
+import com.morales.nectar.data.remote.requests.care.UpdateCareLogRequest
 import com.morales.nectar.data.remote.responses.NectarResponseEntity
 import retrofit2.Response
 
@@ -15,17 +16,23 @@ import retrofit2.http.Path
 
 interface CareLogApi {
 
+    @GET("/api/v1/plant-care/user/{id}")
+    suspend fun getCareLogsByUserId(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): Response<NectarResponseEntity<List<CareLog>>>
+
     @GET("plant-care/{id}")
     suspend fun getCareLogsByPlantId(
         @Header("Authorization") token: String,
         @Path("id") id: String
-    ): Response<NectarResponseEntity<List<CareLogEntry>>>
+    ): Response<NectarResponseEntity<List<CareLog>>>
 
     @GET("plant-care/id/{id}")
     suspend fun getCareLogsById(
         @Header("Authorization") token: String,
         @Path("id") id: String
-    ): Response<NectarResponseEntity<CareLogEntry>>
+    ): Response<NectarResponseEntity<CareLog>>
 
     @POST("plant-care")
     suspend fun createCareLogEntry(
@@ -37,7 +44,7 @@ interface CareLogApi {
     suspend fun updateCareLogEntry(
         @Header("Authorization") token: String,
         @Path("id") id: String,
-        @Body careLogEntry: CareLogEntry
+        @Body careLog: UpdateCareLogRequest
     ): Response<NectarResponseEntity<Any>>
 
     @DELETE("plant-care/{id}")

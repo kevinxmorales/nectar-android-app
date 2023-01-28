@@ -9,16 +9,16 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.morales.nectar.composables.NotificationMessage
-import com.morales.nectar.data.models.CareLogEntry
+import com.morales.nectar.data.models.CareLogParcel
 import com.morales.nectar.data.models.PlantData
 import com.morales.nectar.screens.NectarViewModel
 import com.morales.nectar.screens.auth.LoginScreen
 import com.morales.nectar.screens.auth.ProfileScreen
 import com.morales.nectar.screens.auth.SignUpScreen
-import com.morales.nectar.screens.feed.FeedScreen
-import com.morales.nectar.screens.plants.CareLogEntriesScreen
+import com.morales.nectar.screens.care.CareLogEntriesScreen
+import com.morales.nectar.screens.care.CreateCareLogEntryScreen
+import com.morales.nectar.screens.care.EditCareLogEntryScreen
 import com.morales.nectar.screens.plants.CreateNewPlantScreen
-import com.morales.nectar.screens.plants.EditCareLogEntryScreen
 import com.morales.nectar.screens.plants.EditPlantScreen
 import com.morales.nectar.screens.plants.MyPlantsScreen
 import com.morales.nectar.screens.plants.PlantSearchScreen
@@ -48,7 +48,8 @@ sealed class DestinationScreen(val route: String) {
     object CreateNewPlant : DestinationScreen("addPlant")
     object EditPlant : DestinationScreen("editPlant")
     object SinglePlant : DestinationScreen("singlePlant")
-    object CareLogEntries : DestinationScreen("care/{plantId}") {
+    object CareLogEntries : DestinationScreen("careLogs")
+    object CreateCareLogEntry : DestinationScreen("care/{plantId}") {
         fun createRoute(plantId: String) = "care/$plantId"
     }
 
@@ -67,9 +68,6 @@ fun NectarApp() {
         }
         composable(DestinationScreen.Login.route) {
             LoginScreen(navController = navController, vm = vm)
-        }
-        composable(DestinationScreen.Feed.route) {
-            FeedScreen(navController = navController, vm = vm)
         }
         composable(DestinationScreen.Search.route) {
             PlantSearchScreen(navController = navController, vm = vm)
@@ -106,22 +104,25 @@ fun NectarApp() {
                 )
             }
         }
-        composable(DestinationScreen.CareLogEntries.route) { navBackStackEntry ->
+        composable(DestinationScreen.CareLogEntries.route) {
+            CareLogEntriesScreen(navController = navController, vm = vm)
+        }
+        composable(DestinationScreen.CreateCareLogEntry.route) { navBackStackEntry ->
             val plantId = navBackStackEntry.arguments?.getString("plantId")
             plantId?.let {
-                CareLogEntriesScreen(navController = navController, vm = vm, plantId = it)
+                CreateCareLogEntryScreen(navController = navController, vm = vm, plantId = it)
             }
         }
         composable(DestinationScreen.EditCareLogEntry.route) {
-            val careLogEntry = navController
+            val careLog = navController
                 .previousBackStackEntry
                 ?.arguments
-                ?.getParcelable<CareLogEntry>("entry")
-            careLogEntry?.let {
+                ?.getParcelable<CareLogParcel>("entry")
+            careLog?.let {
                 EditCareLogEntryScreen(
                     navController = navController,
                     vm = vm,
-                    entry = careLogEntry
+                    entryParcel = careLog
                 )
             }
         }

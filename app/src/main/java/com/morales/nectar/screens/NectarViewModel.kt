@@ -9,10 +9,11 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
 import com.morales.nectar.data.Event
-import com.morales.nectar.data.models.CareLogEntry
+import com.morales.nectar.data.models.CareLog
 import com.morales.nectar.data.models.PlantData
 import com.morales.nectar.data.models.UserData
 import com.morales.nectar.data.remote.requests.care.CareLogRequest
+import com.morales.nectar.data.remote.requests.care.UpdateCareLogRequest
 import com.morales.nectar.data.remote.requests.user.CreateUserRequest
 import com.morales.nectar.data.remote.requests.user.UpdateUserRequest
 import com.morales.nectar.exceptions.UnauthorizedException
@@ -25,6 +26,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.*
 import javax.inject.Inject
 
@@ -44,38 +47,22 @@ class NectarViewModel @Inject constructor(
     val isLoading = mutableStateOf(false)
     val userData = mutableStateOf<UserData?>(null)
     val popupNotification = mutableStateOf<Event<String>?>(null)
-
-    val refreshPlantsProgress = mutableStateOf(false)
     val plants = mutableStateOf<List<PlantData>>(listOf())
-
     val searchedPlants = mutableStateOf<List<PlantData>>(listOf())
-    val searchedPlantsProgress = mutableStateOf(false)
-
     val plantsFeed = mutableStateOf<List<PlantData>>(listOf())
-    val plantsFeedProgress = mutableStateOf(false)
-
-    val careLogEntries = mutableStateOf<List<CareLogEntry>>(listOf())
-    val careLogEntriesProgress = mutableStateOf(false)
-
-    val numFollowers = mutableStateOf(0)
-
+    val careLogEntries = mutableStateOf<List<CareLog>>(listOf())
+    val allCareLogEntries = mutableStateOf<List<CareLog>>(listOf())
     private val currentPlant = mutableStateOf<PlantData?>(null)
-
-    val currentCareLogEntry = mutableStateOf<CareLogEntry?>(null)
+    val currentCareLog = mutableStateOf<CareLog?>(null)
 
     init {
         val currentUser = auth.currentUser
         signedIn.value = currentUser != null
-        Log.i(TAG, "SIGNED IN: ${signedIn.value}")
         if (currentUser != null) {
             getUserData(id = currentUser.uid)
+            getAllCareLogEntries()
         }
-        if (currentUser != null) {
-            Log.i(TAG, currentUser.uid)
-        } else {
-            Log.i(TAG, "CURRENT USER IS NULL")
-        }
-
+        withAuth { viewModelScope.launch { Log.i(TAG, it) } }
     }
 
     private fun getUserData(id: String) {
@@ -159,13 +146,19 @@ class NectarViewModel @Inject constructor(
     }
 
     private fun withAuth(execute: (token: String) -> Job) {
-        val task = auth.currentUser?.getIdToken(true) ?: throw Exception("Could not get auth token")
-        task.addOnSuccessListener {
-            val token = it.token.toString()
-            execute("Bearer $token")
-        }.addOnFailureListener {
-            throw Exception("Could not get auth token")
+        if (auth.currentUser == null) {
+            onLogout()
+            return
         }
+        auth.currentUser!!.getIdToken(true)
+            .addOnSuccessListener {
+                val token = it.token.toString()
+                Log.i(TAG, token)
+                execute("Bearer $token")
+            }.addOnFailureListener {
+                Log.e(TAG, "could not get authentication token")
+                onLogout()
+            }
     }
 
     fun updateUserInfo(
@@ -217,10 +210,10 @@ class NectarViewModel @Inject constructor(
             onLogout()
             return
         }
-        refreshPlantsProgress.value = true
+        isLoading.value = true
         getPlantsByUserId(currentUid) { plantList ->
             plants.value = plantList
-            refreshPlantsProgress.value = false
+            isLoading.value = false
         }
 
     }
@@ -234,13 +227,13 @@ class NectarViewModel @Inject constructor(
                         onLogout()
                     }
                     handleException(null, "Cannot fetch plants")
-                    refreshPlantsProgress.value = false
+                    isLoading.value = false
                     return@launch
                 }
                 val plantsRes = res.data
                 if (plantsRes == null) {
                     handleException(null, "could not fetch your plant collection")
-                    refreshPlantsProgress.value = false
+                    isLoading.value = false
                     return@launch
                 }
                 onSuccess(plantsRes.plants)
@@ -393,10 +386,12 @@ class NectarViewModel @Inject constructor(
                     isLoading.value = false
                     return@launch
                 }
+                /*
                 val searchTerms = commonName
                     .split(" ", ".", ",", "?", "!", "#")
                     .map { it.lowercase() }
                     .filter { it.isNotEmpty() and !FILLER_WORDS.contains(it) }
+                 */
                 val newPlant = PlantData(
                     commonName = commonName,
                     scientificName = scientificName,
@@ -458,7 +453,6 @@ class NectarViewModel @Inject constructor(
         plantsFeed.value = listOf()
         plants.value = listOf()
         careLogEntries.value = listOf()
-        numFollowers.value = 0
     }
 
     fun searchPlants(searchTerm: String) {
@@ -497,29 +491,29 @@ class NectarViewModel @Inject constructor(
     }
 
     private fun refreshCareLogEntries(plantId: String) {
-        refreshPlantsProgress.value = true
+        isLoading.value = true
         getCareLogEntries(plantId) { logs ->
             careLogEntries.value = logs
         }
 
     }
 
-    fun getCareLogEntries(plantId: String, onSuccess: ((logs: List<CareLogEntry>) -> Unit)?) {
+    fun getCareLogEntries(plantId: String, onSuccess: ((logs: List<CareLog>) -> Unit)?) {
         withAuth { token: String ->
-            careLogEntriesProgress.value = true
+            isLoading.value = true
             viewModelScope.launch(Dispatchers.Main) {
                 val res = careLogRepository.getCareLogsByPlantId(token, plantId)
-                careLogEntriesProgress.value = false
+                isLoading.value = false
                 if (res is Resource.Error) {
                     handleException(res.exception, "Could not get care log entries")
                     return@launch
                 }
                 if (onSuccess == null) {
-                    careLogEntriesProgress.value = false
+                    isLoading.value = false
                     careLogEntries.value = res.data ?: listOf()
                     return@launch
                 }
-                careLogEntriesProgress.value = false
+                isLoading.value = false
                 onSuccess(res.data ?: listOf())
             }
         }
@@ -535,7 +529,7 @@ class NectarViewModel @Inject constructor(
                     handleException(res.exception, "Could not get care log entry")
                     return@launch
                 }
-                currentCareLogEntry.value = res.data
+                currentCareLog.value = res.data
             }
         }
     }
@@ -589,11 +583,11 @@ class NectarViewModel @Inject constructor(
         }
     }
 
-    fun updateCareLogEntry(id: String, careLogEntry: CareLogEntry) {
+    fun updateCareLogEntry(id: String, careLog: UpdateCareLogRequest) {
         withAuth { token: String ->
             viewModelScope.launch(Dispatchers.Main) {
                 isLoading.value = true
-                val res = careLogRepository.updateCareLogEntry(token, id, careLogEntry)
+                val res = careLogRepository.updateCareLogEntry(token, id, careLog)
                 isLoading.value = false
                 if (res is Resource.Error) {
                     handleException(
@@ -606,4 +600,24 @@ class NectarViewModel @Inject constructor(
             }
         }
     }
+
+    fun getAllCareLogEntries() {
+        val userId = auth.currentUser?.uid ?: return
+        withAuth { token ->
+            viewModelScope.launch {
+                isLoading.value = true
+                val res = careLogRepository.getCareLogsByUserId(token, userId)
+                isLoading.value = false
+                if (res is Resource.Error) {
+                    handleException(res.exception, "Could not get care log entries")
+                    return@launch
+                }
+                allCareLogEntries.value = res.data ?: listOf()
+            }
+        }
+    }
+
+    fun parseDate(dateString: String): LocalDate =
+        LocalDate.parse(dateString, DateTimeFormatter.RFC_1123_DATE_TIME)
+
 }

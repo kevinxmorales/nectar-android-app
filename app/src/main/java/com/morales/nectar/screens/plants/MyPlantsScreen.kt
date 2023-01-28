@@ -1,5 +1,6 @@
 package com.morales.nectar.screens.plants
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,11 +21,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.morales.nectar.DestinationScreen
 import com.morales.nectar.composables.CommonImage
+import com.morales.nectar.composables.NectarOutlinedButton
 import com.morales.nectar.composables.ProgressSpinner
 import com.morales.nectar.composables.UserImageCard
 import com.morales.nectar.data.models.PlantData
@@ -34,21 +35,19 @@ import com.morales.nectar.navigation.NavParam
 import com.morales.nectar.navigation.navigateTo
 import com.morales.nectar.screens.NectarViewModel
 
-data class PostRow(
-    var post1: PlantData? = null,
-    var post2: PlantData? = null,
-    var post3: PlantData? = null,
-) {
-    fun isFull() = post1 != null && post2 != null && post3 != null
+class PostRow {
+    private val maxSize = 3
+    val values = mutableListOf<PlantData?>()
+
+    fun size() = values.size
+    fun isFull(): Boolean {
+        return values.size == maxSize
+    }
 
     fun add(post: PlantData) {
-        if (post1 == null) {
-            post1 = post
-        } else if (post2 == null) {
-            post2 = post
-        } else if (post3 == null) {
-            post3 = post
-        }
+        if (isFull()) return
+        values.add(values.size, post)
+        return
     }
 }
 
@@ -59,78 +58,34 @@ fun MyPlantsScreen(
 ) {
     val userData = vm.userData.value
     val isLoading = vm.isLoading.value
-    val postsLoading = vm.refreshPlantsProgress.value
-    val posts = vm.plants.value
-    val numFollowers = vm.numFollowers.value
+    val plants = vm.plants.value
 
     Column {
         Column(modifier = Modifier.weight(1f)) {
-            Row {
-                ProfileImage(imageUrl = userData?.imageUrl)
-                Text(
-                    text = "${posts.size}\n plants",
-                    modifier = Modifier
-                        .weight(1f)
-                        .align(Alignment.CenterVertically),
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = "$numFollowers\n following",
-                    modifier = Modifier
-                        .weight(1f)
-                        .align(Alignment.CenterVertically),
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = "${if (userData?.following == null) "0" else userData.following.size}\n followers",
-                    modifier = Modifier
-                        .weight(1f)
-                        .align(Alignment.CenterVertically),
-                    textAlign = TextAlign.Center
-                )
+            Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                Row {
+                    ProfileImage(imageUrl = userData?.imageUrl)
+                    Column(
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .padding(top = 10.dp)
+                    ) {
+                        Text(text = userData?.name ?: "", fontWeight = FontWeight.Bold)
+                        Text(text = userData?.username ?: "")
+                    }
+                }
             }
-            Column(modifier = Modifier.padding(8.dp)) {
-                val usernameDisplay =
-                    if (userData?.username == null) "" else "@${userData.username}"
-                Text(text = userData?.name ?: "", fontWeight = FontWeight.Bold)
-                Text(text = usernameDisplay)
-            }
-            OutlinedButton(
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = Color.Transparent
-                ),
-                elevation = ButtonDefaults.elevation(
-                    defaultElevation = 0.dp,
-                    pressedElevation = 0.dp,
-                    disabledElevation = 0.dp
-                ),
-                modifier = Modifier
-                    .padding(8.dp)
-                    .fillMaxWidth(),
-                onClick = { navigateTo(navController, DestinationScreen.Profile) },
-                shape = RoundedCornerShape(10)
-            ) {
-                Text(text = "Edit Profile", color = Color.Black)
-            }
-            OutlinedButton(
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = Color.Blue
-                ),
-                elevation = ButtonDefaults.elevation(
-                    defaultElevation = 0.dp,
-                    pressedElevation = 0.dp,
-                    disabledElevation = 0.dp
-                ),
-                modifier = Modifier
-                    .padding(8.dp)
-                    .fillMaxWidth(),
-                onClick = { navigateTo(navController, DestinationScreen.CreateNewPlant) },
-                shape = RoundedCornerShape(10)
-            ) {
-                Text(text = "Add New Plant", color = Color.White)
-            }
-            PostList(
-                isContextLoading = isLoading,
+            NectarOutlinedButton(
+                buttonText = "Edit Profile",
+                buttonColor = Color.LightGray,
+                buttonTextColor = Color.Black,
+                onClick = { navigateTo(navController, DestinationScreen.Profile) })
+
+            NectarOutlinedButton(
+                buttonText = "Add New Plant",
+                onClick = { navigateTo(navController, DestinationScreen.CreateNewPlant) })
+
+            PlantsGrid(
                 modifier = Modifier
                     .weight(1f)
                     .padding(1.dp)
@@ -142,8 +97,8 @@ fun MyPlantsScreen(
                         NavParam("plant", postData)
                     )
                 },
-                posts = posts,
-                postsLoading = postsLoading
+                posts = plants,
+                isLoading = isLoading
             )
         }
         BottomNavigationMenu(
@@ -167,21 +122,20 @@ fun ProfileImage(imageUrl: String?) {
         UserImageCard(
             modifier = Modifier
                 .padding(8.dp)
-                .size(80.dp),
+                .size(50.dp),
             userImage = imageUrl
         )
     }
 }
 
 @Composable
-fun PostList(
-    isContextLoading: Boolean,
+fun PlantsGrid(
+    isLoading: Boolean,
     modifier: Modifier,
     onPostClick: (PlantData) -> Unit,
-    posts: List<PlantData>,
-    postsLoading: Boolean
+    posts: List<PlantData>
 ) {
-    if (postsLoading) {
+    if (isLoading) {
         ProgressSpinner()
     } else if (posts.isEmpty()) {
         Column(
@@ -189,9 +143,7 @@ fun PostList(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (!isContextLoading) {
-                Text(text = "No plants available")
-            }
+            Text(text = "No plants yet")
         }
     } else {
         LazyColumn(modifier = modifier) {
@@ -205,59 +157,109 @@ fun PostList(
                 }
                 currentRow.add(post)
             }
-
             items(
                 count = rows.size,
-                key = { idx -> rows[idx].post1?.plantId!! },
-                itemContent = { idx -> PostsRow(item = rows[idx], onPostClick = onPostClick) }
+                key = { idx -> rows[idx].values.getOrNull(0)?.plantId!! },
+                itemContent = { idx ->
+                    PostsRow(
+                        postRow = rows[idx],
+                        onPostClick = onPostClick
+                    )
+                }
             )
         }
     }
 }
 
 @Composable
-fun PostsRow(item: PostRow, onPostClick: (PlantData) -> Unit) {
+fun PostsRow(postRow: PostRow, onPostClick: (PlantData) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(120.dp)
+            .height(120.dp),
+        horizontalArrangement = Arrangement.Center
     ) {
-        PostImage(
-            imageUrl = item.post1?.images?.get(0),
-            modifier = Modifier
-                .weight(1f)
-                .clickable { item.post1?.let { post -> onPostClick(post) } }
-        )
-        PostImage(
-            imageUrl = item.post2?.images?.get(0),
-            modifier = Modifier
-                .weight(1f)
-                .clickable { item.post2?.let { post -> onPostClick(post) } }
-        )
-        PostImage(
-            imageUrl = item.post3?.images?.get(0),
-            modifier = Modifier
-                .weight(1f)
-                .clickable { item.post3?.let { post -> onPostClick(post) } }
-        )
+        val onClick = { idx: Int ->
+            val post = postRow.values.getOrNull(idx)
+            if (post != null) onPostClick(post)
+        }
+        for (i in 0 until 3) {
+            PostImage(
+                imageUrl = postRow.values.getOrNull(i)?.images?.get(0),
+                modifier = Modifier
+                    .clickable { onClick.invoke(i) }
+            )
+        }
     }
+
 }
 
 @Composable
 fun PostImage(imageUrl: String?, modifier: Modifier) {
-    Box(modifier = modifier) {
-        val imageModifier = if (imageUrl == null) {
-            modifier.clickable(enabled = false) {}
-        } else {
-            Modifier
-                .padding(1.dp)
-                .fillMaxSize()
+    if (imageUrl == null) {
+        Box(modifier = Modifier.background(Color.Transparent)) {
+            CommonImage(
+                uri = null, contentDescription = "placeholder", modifier = Modifier
+                    .padding(1.dp)
+                    .fillMaxSize()
+            )
         }
-        CommonImage(
-            data = imageUrl,
-            contentDescription = "a plant image",
-            modifier = imageModifier
-        )
+    } else {
+        Box(modifier = modifier) {
+            CommonImage(
+                uri = imageUrl,
+                contentDescription = "a plant image",
+                modifier = Modifier
+                    .padding(1.dp)
+                    .fillMaxSize()
+                    .background(Color.Transparent)
+            )
+        }
+    }
+}
+
+@Composable
+fun MyPlantsButtonRow(
+    settingsOnClick: () -> Unit,
+    newPlantOnClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        OutlinedButton(
+            colors = ButtonDefaults.buttonColors(backgroundColor = Color.LightGray),
+            elevation = ButtonDefaults.elevation(
+                defaultElevation = 0.dp,
+                pressedElevation = 0.dp,
+                disabledElevation = 0.dp
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 5.dp),
+            onClick = { settingsOnClick.invoke() },
+            shape = RoundedCornerShape(10)
+        ) {
+            Text(text = "Settings", color = Color.Black)
+        }
+
+        OutlinedButton(
+            colors = ButtonDefaults.buttonColors(backgroundColor = Color.Blue),
+            elevation = ButtonDefaults.elevation(
+                defaultElevation = 0.dp,
+                pressedElevation = 0.dp,
+                disabledElevation = 0.dp
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 5.dp),
+            onClick = { newPlantOnClick.invoke() },
+            shape = RoundedCornerShape(10)
+        ) {
+            Text(text = "Add New Plant", color = Color.White)
+        }
     }
 }
 

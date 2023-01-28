@@ -47,8 +47,8 @@ fun PlantSearchScreen(
             onSearchChange = { searchTerm = it },
             searchTerm = searchTerm,
         )
-        PostList(
-            isContextLoading = false,
+        PlantsGrid(
+            isLoading = false,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
@@ -61,7 +61,6 @@ fun PlantSearchScreen(
                 )
             },
             posts = searchedPosts,
-            postsLoading = searchedPostsLoading
         )
         BottomNavigationMenu(
             selectedItem = BottomNavigationItem.SEARCH,

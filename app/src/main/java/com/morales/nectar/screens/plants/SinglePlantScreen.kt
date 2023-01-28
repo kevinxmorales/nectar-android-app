@@ -12,26 +12,37 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.accompanist.pager.ExperimentalPagerApi
 import com.google.accompanist.pager.HorizontalPager
+import com.himanshoe.kalendar.Kalendar
+import com.himanshoe.kalendar.model.KalendarDay
+import com.himanshoe.kalendar.model.KalendarEvent
+import com.himanshoe.kalendar.model.KalendarType
 import com.morales.nectar.DestinationScreen
 import com.morales.nectar.R
 import com.morales.nectar.composables.CommonDivider
-import com.morales.nectar.composables.CommonImage
+import com.morales.nectar.composables.CommonImageFull
+import com.morales.nectar.composables.NectarConfirmDialog
+import com.morales.nectar.composables.NectarSubmitButton
 import com.morales.nectar.composables.ProgressSpinner
-import com.morales.nectar.data.models.CareLogEntry
+import com.morales.nectar.data.models.CareLog
 import com.morales.nectar.data.models.PlantData
 import com.morales.nectar.navigation.NavParam
 import com.morales.nectar.navigation.navigateTo
 import com.morales.nectar.screens.NectarViewModel
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.toJavaLocalDate
+import java.time.format.DateTimeFormatter
 import java.util.*
 
-private const val TAG = "SinglePlant Screen"
+private const val TAG = "SinglePlantScreen"
+private const val USE_CALENDAR_VIEW = "Use Calendar View"
+private const val USE_LIST_VIEW = "Use List View"
+
 
 @Composable
 fun SinglePlantScreen(
@@ -40,10 +51,6 @@ fun SinglePlantScreen(
     vm: NectarViewModel,
 ) {
     val scrollState = rememberScrollState()
-    val getPlant = {
-        vm.fetchPlantById(p.plantId)
-        vm.getCareLogEntries(p.plantId!!, null)
-    }
 
     val onDelete = {
         vm.onDeletePlant(p)
@@ -58,7 +65,7 @@ fun SinglePlantScreen(
     }
 
     LaunchedEffect(key1 = Unit) {
-        getPlant()
+        vm.getCareLogEntries(p.plantId!!, null)
     }
 
     Column(
@@ -90,9 +97,9 @@ fun SinglePostHeader(
 ) {
     val showDeleteDialog = remember { mutableStateOf(false) }
     if (showDeleteDialog.value) {
-        ConfirmDeleteDialog(
+        NectarConfirmDialog(
             onCancel = { showDeleteDialog.value = false },
-            onDelete = {
+            onSubmit = {
                 onDelete.invoke()
                 showDeleteDialog.value = false
                 navController.popBackStack()
@@ -145,8 +152,27 @@ fun SinglePostDisplay(
     val careLogEntries = vm.careLogEntries.value
     val careLogEntriesProgress = vm.careLogEntriesProgress.value
 
+    val useCalendarView = remember { mutableStateOf(false) }
+    val careLogButtonText = remember { mutableStateOf(USE_CALENDAR_VIEW) }
+
     val onAddCareLogEntry = {
-        navController.navigate(DestinationScreen.CareLogEntries.createRoute(post.plantId!!))
+        navController.navigate(DestinationScreen.CreateCareLogEntry.createRoute(post.plantId!!))
+    }
+
+    val onClick = {
+        careLogButtonText.value = if (useCalendarView.value) USE_LIST_VIEW else USE_CALENDAR_VIEW
+        useCalendarView.value = useCalendarView.value.not()
+    }
+    val today = LocalDate.parse(java.time.LocalDate.now().format(DateTimeFormatter.ISO_DATE))
+    val careLogsOnDay = remember { mutableStateOf<List<CareLog>>(listOf()) }
+    val careLogDaySelected = remember { mutableStateOf(KalendarDay(today)) }
+
+    val onCalendarDayClick = { kalendarDay: KalendarDay, kalendarEvents: List<KalendarEvent> ->
+        careLogDaySelected.value = kalendarDay
+        for (event in kalendarEvents) {
+            careLogsOnDay.value =
+                careLogEntries.filter { careLogEntry -> java.time.LocalDate.parse(careLogEntry.careDate) == event.date.toJavaLocalDate() }
+        }
     }
 
     val refreshScreen = {
@@ -158,122 +184,131 @@ fun SinglePostDisplay(
         )
     }
 
-    Column {
-        Column(
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+    ) {
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
+                .fillMaxWidth()
+                .height(48.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Card(
-                        shape = CircleShape,
-                        modifier = Modifier
-                            .padding(8.dp)
-                            .size(32.dp)
-                    ) {
-                        CommonImage(
-                            contentDescription = "the plant owner's profile picture",
-                            data = post.userImage,
-                        )
-                    }
-                    Text(text = post.username ?: "")
-                }
-            }
-
-            Box {
-                post.images?.size?.let { size ->
-                    HorizontalPager(
-                        count = size,
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                    ) { page ->
-                        CommonImage(
-                            contentDescription = "a picture of the plant",
-                            contentScale = ContentScale.FillWidth,
-                            data = post.images!![page],
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .defaultMinSize(minHeight = 150.dp)
-                        )
-                    }
-                }
-
-            }
             Row(
-                modifier = Modifier.padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (!post.likes.isNullOrEmpty()) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_like),
-                        contentDescription = "like button",
-                        modifier = Modifier.size(24.dp),
-                        colorFilter = ColorFilter.tint(Color.Red)
+                Card(
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .size(32.dp)
+                ) {
+                    CommonImageFull(
+                        contentDescription = "the plant owner's profile picture",
+                        uri = post.userImage,
                     )
                 }
-                val numLikes: Int = if (post.likes.isNullOrEmpty()) 0 else post.likes!!.size
-                Text(text = "$numLikes likes")
+                Text(text = post.username ?: "")
             }
-            Row(modifier = Modifier.padding(8.dp)) {
-                Text(text = post.username ?: "", fontWeight = FontWeight.Bold)
-                Text(text = post.commonName ?: "", modifier = Modifier.padding(start = 8.dp))
-            }
-            CommonDivider()
-
-            Row(modifier = Modifier.padding(8.dp)) {
-                if (careLogEntries.isNotEmpty()) {
-                    Text(text = "${careLogEntries.size} Care Log ${if (careLogEntries.size > 1) "Entries" else "Entry"}")
-                }
-            }
-            Row(modifier = Modifier.padding(8.dp)) {
-                Text(
-                    text = "+ Add new care log entry",
-                    color = Color.Blue,
-                    modifier = Modifier.clickable { onAddCareLogEntry.invoke() }
-                )
-            }
-            CommonDivider()
-
-            if (careLogEntriesProgress) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    ProgressSpinner()
-                }
-            } else {
-                CareLogEntryList(
-                    navController,
-                    careLogEntries,
-                    vm,
-                    refreshScreen
-                )
-            }
-
-
         }
 
+        Box {
+            post.images?.size?.let { size ->
+                HorizontalPager(
+                    count = size,
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                ) { page ->
+                    CommonImageFull(
+                        contentDescription = "a picture of the plant",
+                        uri = post.images!![page],
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 150.dp)
+                    )
+                }
+            }
+
+        }
+        Row(modifier = Modifier.padding(8.dp)) {
+            Text(
+                text = "Common Name: " + post.commonName,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+        Row(modifier = Modifier.padding(8.dp)) {
+            Text(
+                text = "Scientific Name: " + post.scientificName,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+        Row(modifier = Modifier.padding(8.dp)) {
+            Text(text = "Toxicity: " + post.toxicity, modifier = Modifier.padding(start = 8.dp))
+        }
+
+        CommonDivider()
+
+        Row(modifier = Modifier.padding(8.dp)) {
+            if (careLogEntries.isNotEmpty()) {
+                Text(text = "${careLogEntries.size} Care Log ${if (careLogEntries.size > 1) "Entries" else "Entry"}")
+            }
+        }
+        Row(modifier = Modifier.padding(8.dp)) {
+            Text(
+                text = "+ Add new care log entry",
+                color = Color.Blue,
+                modifier = Modifier.clickable { onAddCareLogEntry.invoke() }
+            )
+        }
+        CommonDivider()
+
+        NectarSubmitButton(buttonText = USE_CALENDAR_VIEW, onClick = { onClick.invoke() })
+
+        if (careLogEntriesProgress) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                ProgressSpinner()
+            }
+        }
+        if (useCalendarView.value) {
+            Kalendar(
+                kalendarType = KalendarType.Oceanic,
+                onCurrentDayClick = { day, events -> onCalendarDayClick.invoke(day, events) }
+            )
+            CareLogEntryList(
+                navController,
+                careLogsOnDay.value,
+                vm,
+                refreshScreen,
+            )
+        } else {
+            CareLogEntryList(
+                navController,
+                careLogEntries,
+                vm,
+                refreshScreen
+            )
+        }
     }
 }
 
 @Composable
 fun CareLogEntryList(
     navController: NavController,
-    careLogEntries: List<CareLogEntry>,
+    careLogEntries: List<CareLog>,
     vm: NectarViewModel,
     refreshScreen: () -> Unit
 ) {
 
-    val onUpdate = { entry: CareLogEntry ->
-        navigateTo(navController, DestinationScreen.EditCareLogEntry, NavParam("entry", entry))
+    val onUpdate = { entry: CareLog ->
+        navigateTo(
+            navController,
+            DestinationScreen.EditCareLogEntry,
+            NavParam("entry", entry.toCareLogParcel())
+        )
     }
 
     val onDelete = { id: String ->
@@ -302,21 +337,26 @@ fun CareLogEntryList(
 
 @Composable
 fun CareLogEntryRow(
-    entry: CareLogEntry,
-    onUpdate: (entry: CareLogEntry) -> Unit,
+    entry: CareLog,
+    onUpdate: (entry: CareLog) -> Unit,
     onDelete: (id: String) -> Unit,
     refreshScreen: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val showDeleteDialog = remember { mutableStateOf(false) }
 
-    Row(horizontalArrangement = Arrangement.End) {
+    Row(
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 5.dp)
+    ) {
         if (showDeleteDialog.value) {
-            ConfirmDeleteDialog(
+            NectarConfirmDialog(
                 onCancel = { showDeleteDialog.value = false },
-                onDelete = {
+                onSubmit = {
                     showDeleteDialog.value = false
-                    onDelete.invoke(entry.id!!)
+                    onDelete.invoke(entry.id)
                     refreshScreen.invoke()
                 }
             )
@@ -326,9 +366,9 @@ fun CareLogEntryRow(
                 .fillMaxHeight()
                 .width(300.dp)
         ) {
-            Text(text = "Date: ${entry.date?.split("T")?.get(0)}", fontWeight = FontWeight.Bold)
-            Text(text = "Watered: ${if (entry.wasWatered == true) "Yes" else "No"}")
-            Text(text = "Fertilized: ${if (entry.wasFertilized == true) "Yes" else "No"}")
+            Text(text = "Date: ${entry.careDate}", fontWeight = FontWeight.Bold)
+            Text(text = "Watered: ${if (entry.wasWatered) "Yes" else "No"}")
+            Text(text = "Fertilized: ${if (entry.wasFertilized) "Yes" else "No"}")
             Text(text = "Notes: ${entry.notes}", modifier = Modifier.padding(bottom = 8.dp))
         }
         Column(
@@ -343,26 +383,19 @@ fun CareLogEntryRow(
                 }) {
                     Icon(
                         imageVector = Icons.Filled.MoreVert,
-                        contentDescription = "More",
+                        contentDescription = "More Options",
                     )
                 }
-                // 5
                 DropdownMenu(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
                 ) {
-                    // 6
                     DropdownMenuItem(
-                        onClick = {
-                            onUpdate.invoke(entry)
-                        }
+                        onClick = { onUpdate.invoke(entry) }
                     ) {
                         Text("Update")
                     }
-                    DropdownMenuItem(
-                        onClick = {
-                            showDeleteDialog.value = true
-                        }
+                    DropdownMenuItem(onClick = { showDeleteDialog.value = true }
                     ) {
                         Text("Delete")
                     }
@@ -370,42 +403,5 @@ fun CareLogEntryRow(
             }
         }
     }
+    CommonDivider()
 }
-
-@Composable
-fun ConfirmDeleteDialog(
-    onCancel: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = {
-            onCancel.invoke()
-        },
-        title = {
-            Text(text = "Are you sure you want to delete?")
-        },
-        buttons = {
-            Row(
-                modifier = Modifier.padding(8.dp),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Button(
-                    modifier = Modifier
-                        .padding(4.dp)
-                        .padding(horizontal = 10.dp),
-                    onClick = { onDelete.invoke() }
-                ) {
-                    Text("Confirm")
-                }
-
-                Button(
-                    modifier = Modifier.padding(4.dp),
-                    onClick = { onCancel.invoke() }
-                ) {
-                    Text("Cancel")
-                }
-            }
-        }
-    )
-}
-

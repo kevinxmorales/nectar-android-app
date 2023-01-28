@@ -7,37 +7,44 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
-import androidx.compose.material.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.morales.nectar.composables.CommonDivider
-import com.morales.nectar.composables.NectarDatePicker
+import com.morales.nectar.composables.NectarTextField
 import com.morales.nectar.composables.PlantImage
 import com.morales.nectar.composables.ProgressSpinner
 import com.morales.nectar.screens.NectarViewModel
-import java.time.LocalDate
+import com.morales.nectar.ui.theme.Purple200
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun CreateNewPlantScreen(
     navController: NavController,
@@ -50,10 +57,7 @@ fun CreateNewPlantScreen(
     var plantName by rememberSaveable { mutableStateOf("") }
     var scientificName by rememberSaveable { mutableStateOf("") }
     var toxicity by rememberSaveable { mutableStateOf("") }
-    var pickedDate by remember { mutableStateOf(LocalDate.now()) }
-    val onDatePicked = { newDate: LocalDate ->
-        pickedDate = newDate
-    }
+
     val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
     val newPostImageLauncher1 = rememberLauncherForActivityResult(
@@ -125,34 +129,45 @@ fun CreateNewPlantScreen(
             }
 
         }
+        Box(modifier = Modifier.onKeyEvent {
+            if (it.key == Key.Enter && it.type == KeyEventType.KeyDown) {
+                focusManager.moveFocus(FocusDirection.Next)
+                true
+            } else {
+                false
+            }
+        }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .background(Purple200),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            PlantTextFieldRow(
-                label = "Common Name: e.g. Monstera Albo",
-                text = "Common Name",
-                onValueChange = { plantName = it },
-                value = plantName
-            )
-            PlantTextFieldRow(
-                label = "Scientific Name: e.g. Monstera deliciosa ",
-                text = "Scientific Name",
-                onValueChange = { scientificName = it },
-                value = scientificName
-            )
-            PlantTextFieldRow(
-                label = "Toxicity: e.g. Toxic to Pets",
-                text = "Toxicity",
-                onValueChange = { toxicity = it },
-                value = toxicity
-            )
-            NectarDatePicker(pickedDate = pickedDate, onClick = onDatePicked)
-            Text(text = "Common Name : $plantName | Scientific Name: $scientificName | Toxicity: $toxicity | Date: $pickedDate")
+                PlantTextFieldRow(
+                    label = "Common Name: e.g. Monstera Albo",
+                    text = "Common Name",
+                    onValueChange = { plantName = it },
+                    value = plantName,
+                    focusManager = focusManager,
+                )
+
+                PlantTextFieldRow(
+                    label = "Scientific Name: e.g. Monstera deliciosa ",
+                    text = "Scientific Name",
+                    onValueChange = { scientificName = it },
+                    value = scientificName,
+                    focusManager = focusManager,
+                )
+                PlantTextFieldRow(
+                    label = "Toxicity: e.g. Toxic to Pets",
+                    text = "Toxicity",
+                    onValueChange = { toxicity = it },
+                    value = toxicity,
+                    focusManager = focusManager,
+                )
+            }
         }
     }
 }
@@ -183,27 +198,23 @@ fun PlantTextFieldRow(
     label: String,
     text: String,
     onValueChange: (String) -> Unit,
-    value: String
+    value: String,
+    focusManager: FocusManager,
 ) {
+
     Text(
         text = text,
         fontSize = 18.sp,
         fontFamily = FontFamily.Serif,
-        modifier = Modifier
-            .padding(8.dp)
+        modifier = Modifier.padding(8.dp)
     )
-    OutlinedTextField(
-        colors = TextFieldDefaults.textFieldColors(
-            backgroundColor = Color.Transparent,
-            textColor = Color.Black
-        ),
+    NectarTextField(
+        label = label,
+        onChange = { onValueChange.invoke(it) },
+        value = value,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp),
-        onValueChange = { onValueChange(it) },
-        value = value,
-        label = {
-            Text(text = label)
-        }
+            .padding(8.dp)
     )
+
 }

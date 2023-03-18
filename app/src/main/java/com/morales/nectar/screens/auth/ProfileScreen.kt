@@ -20,14 +20,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.morales.nectar.DestinationScreen
-import com.morales.nectar.composables.CommonDivider
-import com.morales.nectar.composables.CommonImage
-import com.morales.nectar.composables.ProgressSpinner
+import com.morales.nectar.android.composables.CommonDivider
+import com.morales.nectar.android.composables.CommonImage
+import com.morales.nectar.android.composables.ProgressSpinner
 import com.morales.nectar.navigation.navigateTo
 import com.morales.nectar.screens.NectarViewModel
+import kotlin.io.path.outputStream
+
+const val TAG = "ProfileScreen"
 
 @Composable
 fun ProfileScreen(
@@ -157,14 +161,27 @@ fun ProfileContent(
 
 @Composable
 fun ProfileImage(imageUrl: String?, vm: NectarViewModel) {
+    val context = LocalContext.current
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        uri?.let {
-            Log.i("ProfileImage", uri.toString())
-            vm.uploadProfileImage(uri)
+        if (uri == null) {
+            Log.e(TAG, "error updating profile image, uri is null")
+            return@rememberLauncherForActivityResult
         }
+        val inputStream = context.contentResolver.openInputStream(uri)
+        if (inputStream == null) {
+            Log.e(TAG, "error updating profile image, input stream is null")
+            return@rememberLauncherForActivityResult
+        }
+        val file = kotlin.io.path.createTempFile()
+        inputStream.use { input ->
+            file.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        vm.uploadProfileImage(file.toFile())
     }
 
     Box(modifier = Modifier.height(IntrinsicSize.Min)) {

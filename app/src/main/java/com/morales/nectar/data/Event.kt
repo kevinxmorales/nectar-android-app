@@ -5,7 +5,7 @@ open class Event<T>(private val content: T) {
         private set
 
     fun getContentOrNull(): T? {
-        return if(hasBeenHandled) {
+        return if (hasBeenHandled) {
             null
         } else {
             hasBeenHandled = true

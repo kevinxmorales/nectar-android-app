@@ -18,6 +18,7 @@ data class PlantData(
     var likes: List<String>? = listOf(),
     var searchTerms: List<String>? = listOf(),
     val createdAt: String? = Calendar.getInstance().time.toString(),
+    var imagesToDelete: List<String>? = null
 ) : Parcelable {
     constructor(parcel: Parcel) : this(
         parcel.readString(),

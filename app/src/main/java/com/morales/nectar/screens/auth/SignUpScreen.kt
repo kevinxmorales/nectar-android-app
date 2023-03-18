@@ -30,9 +30,9 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.morales.nectar.DestinationScreen
 import com.morales.nectar.R
-import com.morales.nectar.composables.NectarSubmitButton
-import com.morales.nectar.composables.NotificationMessage
-import com.morales.nectar.composables.ProgressSpinner
+import com.morales.nectar.android.composables.NectarSubmitButton
+import com.morales.nectar.android.composables.NotificationMessage
+import com.morales.nectar.android.composables.ProgressSpinner
 import com.morales.nectar.navigation.navigateTo
 import com.morales.nectar.screens.NectarViewModel
 

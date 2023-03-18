@@ -32,7 +32,8 @@ fun CreateCareLogEntryScreen(
             plantId = plantId,
             notes = careNotes,
             wasWatered = wasWateredSelection.value,
-            wasFertilized = wasFertilizedSelection.value
+            wasFertilized = wasFertilizedSelection.value,
+            careDate = pickedDate,
         )
         focusManager.clearFocus()
         navController.popBackStack()

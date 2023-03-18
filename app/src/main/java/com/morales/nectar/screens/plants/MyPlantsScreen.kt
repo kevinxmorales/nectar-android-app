@@ -12,9 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,10 +21,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.morales.nectar.DestinationScreen
-import com.morales.nectar.composables.CommonImage
-import com.morales.nectar.composables.NectarOutlinedButton
-import com.morales.nectar.composables.ProgressSpinner
-import com.morales.nectar.composables.UserImageCard
+import com.morales.nectar.android.composables.CommonImage
+import com.morales.nectar.android.composables.NectarOutlinedButton
+import com.morales.nectar.android.composables.ProgressSpinner
+import com.morales.nectar.android.composables.UserImageCard
 import com.morales.nectar.data.models.PlantData
 import com.morales.nectar.navigation.BottomNavigationItem
 import com.morales.nectar.navigation.BottomNavigationMenu
@@ -105,10 +102,6 @@ fun MyPlantsScreen(
             selectedItem = BottomNavigationItem.POSTS,
             navController = navController
         )
-    }
-
-    if (isLoading) {
-        ProgressSpinner()
     }
 
 }
@@ -217,50 +210,3 @@ fun PostImage(imageUrl: String?, modifier: Modifier) {
         }
     }
 }
-
-@Composable
-fun MyPlantsButtonRow(
-    settingsOnClick: () -> Unit,
-    newPlantOnClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .padding(horizontal = 20.dp)
-            .fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center
-    ) {
-        OutlinedButton(
-            colors = ButtonDefaults.buttonColors(backgroundColor = Color.LightGray),
-            elevation = ButtonDefaults.elevation(
-                defaultElevation = 0.dp,
-                pressedElevation = 0.dp,
-                disabledElevation = 0.dp
-            ),
-            modifier = Modifier
-                .weight(1f)
-                .padding(end = 5.dp),
-            onClick = { settingsOnClick.invoke() },
-            shape = RoundedCornerShape(10)
-        ) {
-            Text(text = "Settings", color = Color.Black)
-        }
-
-        OutlinedButton(
-            colors = ButtonDefaults.buttonColors(backgroundColor = Color.Blue),
-            elevation = ButtonDefaults.elevation(
-                defaultElevation = 0.dp,
-                pressedElevation = 0.dp,
-                disabledElevation = 0.dp
-            ),
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 5.dp),
-            onClick = { newPlantOnClick.invoke() },
-            shape = RoundedCornerShape(10)
-        ) {
-            Text(text = "Add New Plant", color = Color.White)
-        }
-    }
-}
-
-

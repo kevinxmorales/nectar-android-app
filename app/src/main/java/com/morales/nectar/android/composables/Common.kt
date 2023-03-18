@@ -1,4 +1,4 @@
-package com.morales.nectar.composables
+package com.morales.nectar.android.composables
 
 import android.widget.Toast
 import androidx.compose.animation.core.Spring
@@ -349,11 +349,7 @@ fun NectarDatePicker(pickedDate: LocalDate, onClick: (LocalDate) -> Unit) {
         dialogState = dateDialogState,
         buttons = {
             positiveButton(text = "Ok") {
-                Toast.makeText(
-                    ctx,
-                    "Clicked ok",
-                    Toast.LENGTH_LONG
-                ).show()
+
             }
             negativeButton(text = "Cancel")
         }

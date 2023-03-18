@@ -32,10 +32,10 @@ import androidx.navigation.NavController
 import com.himanshoe.kalendar.Kalendar
 import com.himanshoe.kalendar.model.KalendarType
 import com.morales.nectar.DestinationScreen
-import com.morales.nectar.composables.CommonDivider
-import com.morales.nectar.composables.NectarConfirmDialog
-import com.morales.nectar.composables.NectarSubmitButton
-import com.morales.nectar.composables.PlantImage
+import com.morales.nectar.android.composables.CommonDivider
+import com.morales.nectar.android.composables.NectarConfirmDialog
+import com.morales.nectar.android.composables.NectarSubmitButton
+import com.morales.nectar.android.composables.PlantImage
 import com.morales.nectar.data.models.CareLog
 import com.morales.nectar.navigation.BottomNavigationItem
 import com.morales.nectar.navigation.BottomNavigationMenu

@@ -24,11 +24,11 @@ import com.himanshoe.kalendar.model.KalendarEvent
 import com.himanshoe.kalendar.model.KalendarType
 import com.morales.nectar.DestinationScreen
 import com.morales.nectar.R
-import com.morales.nectar.composables.CommonDivider
-import com.morales.nectar.composables.CommonImageFull
-import com.morales.nectar.composables.NectarConfirmDialog
-import com.morales.nectar.composables.NectarSubmitButton
-import com.morales.nectar.composables.ProgressSpinner
+import com.morales.nectar.android.composables.CommonDivider
+import com.morales.nectar.android.composables.CommonImageFull
+import com.morales.nectar.android.composables.NectarConfirmDialog
+import com.morales.nectar.android.composables.NectarSubmitButton
+import com.morales.nectar.android.composables.ProgressSpinner
 import com.morales.nectar.data.models.CareLog
 import com.morales.nectar.data.models.PlantData
 import com.morales.nectar.navigation.NavParam
@@ -64,6 +64,11 @@ fun SinglePlantScreen(
         )
     }
 
+    val onBackPress: () -> Unit = {
+        vm.updatePosts()
+        navController.popBackStack()
+    }
+
     LaunchedEffect(key1 = Unit) {
         vm.getCareLogEntries(p.plantId!!, null)
     }
@@ -75,7 +80,7 @@ fun SinglePlantScreen(
             .background(Color.White)
 
     ) {
-        SinglePostHeader(navController, onDelete, onUpdate)
+        SinglePostHeader(navController, onBackPress, onDelete, onUpdate)
 
         CommonDivider()
 
@@ -92,6 +97,7 @@ fun SinglePlantScreen(
 @Composable
 fun SinglePostHeader(
     navController: NavController,
+    onBackPress: () -> Unit,
     onDelete: () -> Unit,
     onUpdate: () -> Unit,
 ) {
@@ -119,7 +125,7 @@ fun SinglePostHeader(
             contentDescription = "back button",
             modifier = Modifier
                 .size(24.dp)
-                .clickable { navController.popBackStack() },
+                .clickable { onBackPress.invoke() },
             colorFilter = ColorFilter.tint(Color.Black)
         )
         Image(
@@ -150,7 +156,7 @@ fun SinglePostDisplay(
     scrollState: ScrollState,
 ) {
     val careLogEntries = vm.careLogEntries.value
-    val careLogEntriesProgress = vm.careLogEntriesProgress.value
+    val careLogEntriesProgress = vm.isLoading.value
 
     val useCalendarView = remember { mutableStateOf(false) }
     val careLogButtonText = remember { mutableStateOf(USE_CALENDAR_VIEW) }

@@ -1,6 +1,7 @@
 package com.morales.nectar.screens.plants
 
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -32,17 +33,21 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.morales.nectar.composables.CommonDivider
-import com.morales.nectar.composables.NectarTextField
-import com.morales.nectar.composables.PlantImage
-import com.morales.nectar.composables.ProgressSpinner
+import com.morales.nectar.android.composables.CommonDivider
+import com.morales.nectar.android.composables.NectarTextField
+import com.morales.nectar.android.composables.PlantImage
+import com.morales.nectar.android.composables.ProgressSpinner
 import com.morales.nectar.screens.NectarViewModel
-import com.morales.nectar.ui.theme.Purple200
+import java.io.File
+import kotlin.io.path.outputStream
+
+private const val TAG = "CreateNewPlantScreen"
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -54,42 +59,70 @@ fun CreateNewPlantScreen(
     var imagesUrl1 by rememberSaveable { mutableStateOf("") }
     var imagesUrl2 by rememberSaveable { mutableStateOf("") }
     var imagesUrl3 by rememberSaveable { mutableStateOf("") }
+
+    var imageFile1 by rememberSaveable { mutableStateOf<File?>(null) }
+    var imageFile2 by rememberSaveable { mutableStateOf<File?>(null) }
+    var imageFile3 by rememberSaveable { mutableStateOf<File?>(null) }
+
     var plantName by rememberSaveable { mutableStateOf("") }
     var scientificName by rememberSaveable { mutableStateOf("") }
     var toxicity by rememberSaveable { mutableStateOf("") }
 
     val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+
+    fun getFileFromUri(uri: Uri?, onSuccess: (uriStr: String, imageFile: File) -> Unit) {
+        if (uri == null) {
+            Log.e(TAG, "error updating profile image, uri is null")
+            return
+        }
+        val inputStream = context.contentResolver.openInputStream(uri)
+        if (inputStream == null) {
+            Log.e(TAG, "error updating profile image, input stream is null")
+            return
+        }
+        val path = kotlin.io.path.createTempFile()
+        inputStream.use { input ->
+            path.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        onSuccess.invoke(uri.toString(), path.toFile())
+    }
+
+
     val newPostImageLauncher1 = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        uri?.let {
-            imagesUrl1 = uri.toString()
+        getFileFromUri(uri) { uriString: String, imageFile: File ->
+            imageFile1 = imageFile
+            imagesUrl1 = uriString
         }
     }
     val newPostImageLauncher2 = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        uri?.let {
-            imagesUrl2 = uri.toString()
+        getFileFromUri(uri) { uriString: String, imageFile: File ->
+            imageFile2 = imageFile
+            imagesUrl2 = uriString
         }
     }
     val newPostImageLauncher3 = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        uri?.let {
-            imagesUrl3 = uri.toString()
+        getFileFromUri(uri) { uriString: String, imageFile: File ->
+            imageFile3 = imageFile
+            imagesUrl3 = uriString
         }
     }
 
     val onSubmit: () -> Unit = {
         focusManager.clearFocus()
+        val imageFiles = listOfNotNull(imageFile1, imageFile2, imageFile3)
+
         vm.onAddNewPlant(
-            listOf(
-                Uri.parse(imagesUrl1),
-                Uri.parse(imagesUrl2),
-                Uri.parse(imagesUrl3)
-            ),
+            imageFiles,
             plantName,
             scientificName,
             toxicity,
@@ -140,8 +173,7 @@ fun CreateNewPlantScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .background(Purple200),
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
@@ -181,7 +213,7 @@ fun PlantCreateOptionsBar(navController: NavController, onSubmit: () -> Unit) {
             .padding(8.dp)
     ) {
         Text(
-            text = "Cancel",
+            text = "Back",
             modifier = Modifier
                 .clickable { navController.popBackStack() }
         )

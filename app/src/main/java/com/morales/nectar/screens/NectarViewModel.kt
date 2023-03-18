@@ -1,13 +1,11 @@
 package com.morales.nectar.screens
 
-import android.net.Uri
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.storage.FirebaseStorage
-import com.google.firebase.storage.StorageReference
 import com.morales.nectar.data.Event
 import com.morales.nectar.data.models.CareLog
 import com.morales.nectar.data.models.PlantData
@@ -16,32 +14,36 @@ import com.morales.nectar.data.remote.requests.care.CareLogRequest
 import com.morales.nectar.data.remote.requests.care.UpdateCareLogRequest
 import com.morales.nectar.data.remote.requests.user.CreateUserRequest
 import com.morales.nectar.data.remote.requests.user.UpdateUserRequest
+import com.morales.nectar.data.remote.responses.FileUploadResponse
 import com.morales.nectar.exceptions.UnauthorizedException
 import com.morales.nectar.repository.CareLogRepository
+import com.morales.nectar.repository.FileRepository
 import com.morales.nectar.repository.PlantsRepository
 import com.morales.nectar.repository.UserRepository
 import com.morales.nectar.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.util.*
 import javax.inject.Inject
 
 private const val TAG = "NectarViewModel"
 private val FILLER_WORDS = listOf("the", "be", "to", "is", "of", "and", "or", "a", "in", "it")
 
+val DATE_FORMATTER = DateTimeFormatter.RFC_1123_DATE_TIME
 
 @HiltViewModel
 class NectarViewModel @Inject constructor(
     private val auth: FirebaseAuth,
-    private val storage: FirebaseStorage,
+    private val sharedPreferences: SharedPreferences,
     private val userRepository: UserRepository,
     private val plantsRepository: PlantsRepository,
     private val careLogRepository: CareLogRepository,
+    private val fileRepository: FileRepository,
 ) : ViewModel() {
     val signedIn = mutableStateOf(false)
     val isLoading = mutableStateOf(false)
@@ -62,7 +64,9 @@ class NectarViewModel @Inject constructor(
             getUserData(id = currentUser.uid)
             getAllCareLogEntries()
         }
-        withAuth { viewModelScope.launch { Log.i(TAG, it) } }
+        withAuth { token ->
+            viewModelScope.launch { setValueInSharePrefs("token", token) }
+        }
     }
 
     private fun getUserData(id: String) {
@@ -112,6 +116,17 @@ class NectarViewModel @Inject constructor(
             }
     }
 
+    fun onLogin2(email: String, pass: String) {
+        if (email.isEmpty() or pass.isEmpty()) {
+            handleException(message = "Please fill in all fields")
+            return
+        }
+        isLoading.value = true
+        viewModelScope.launch {
+
+        }
+    }
+
     fun onSignUp(username: String, email: String, password: String) {
         if (username.isEmpty() or email.isEmpty() or password.isEmpty()) {
             handleException(message = "Please fill in all fields")
@@ -140,12 +155,14 @@ class NectarViewModel @Inject constructor(
             }
             isLoading.value = false
             signedIn.value = true
-            userData.value = createUserResponse.data
+            userData.value = createUserResponse.data?.user
+            val sessionToken = createUserResponse.data?.sessionToken!!
+            setValueInSharePrefs("token", sessionToken)
             onLogin(email, password)
         }
     }
 
-    private fun withAuth(execute: (token: String) -> Job) {
+    fun withAuth(execute: (token: String) -> Job) {
         if (auth.currentUser == null) {
             onLogout()
             return
@@ -203,6 +220,12 @@ class NectarViewModel @Inject constructor(
         }
     }
 
+    fun updatePosts() {
+        viewModelScope.launch {
+            refreshPosts()
+        }
+    }
+
     private fun refreshPosts() {
         val currentUid = auth.currentUser?.uid
         if (currentUid == null) {
@@ -241,32 +264,20 @@ class NectarViewModel @Inject constructor(
         }
     }
 
-    private fun uploadImage(uri: Uri, onSuccess: (Uri) -> Unit) {
+    fun uploadProfileImage(file: File) {
+        val id = auth.currentUser?.uid!!
         isLoading.value = true
-        val storageRef = storage.reference
-        val uuid = UUID.randomUUID()
-        val imageRef = storageRef.child("images/$uuid")
-        val uploadTask = imageRef.putFile(uri)
-
-        uploadTask
-            .addOnSuccessListener {
-                val result = it.metadata?.reference?.downloadUrl
-                result?.addOnSuccessListener(onSuccess)
+        withAuth { token ->
+            viewModelScope.launch {
+                val res = userRepository.updateProfileImage(token, file, id)
+                if (res is Resource.Error) {
+                    handleException(res.exception, "Unable to update profile image")
+                    isLoading.value = false
+                    return@launch
+                }
+                getUserData(id)
             }
-            .addOnFailureListener { e ->
-                handleException(e)
-                isLoading.value = false
-            }
-
-    }
-
-    fun uploadProfileImage(uri: Uri): String? {
-        uploadImage(uri) {
-            updateUserInfo(imageUrl = it.toString())
         }
-        isLoading.value = false
-        val updatedUser = userData.value
-        return updatedUser?.imageUrl
     }
 
     fun fetchPlantById(id: String?) {
@@ -291,40 +302,64 @@ class NectarViewModel @Inject constructor(
         }
     }
 
+    suspend fun fetchPlantById(token: String, id: String?): PlantData? {
+        Log.i(TAG, "Fetching plant by id $id")
+        val deferredPlantData = viewModelScope.async {
+            isLoading.value = true
+            if (id == null) {
+                currentPlant.value = null
+                return@async null
+            }
+            val res = plantsRepository.getPlantById(token, id)
+            Log.i(TAG, res.toString())
+            if (res is Resource.Error) {
+                handleException(null, "Unable to fetch plant data")
+                isLoading.value = false
+                return@async null
+            }
+            isLoading.value = false
+            Log.i(TAG, res.data.toString())
+            return@async res.data
+        }
+        refreshPosts()
+        val plantData = deferredPlantData.await()
+        if (plantData == null) {
+            handleException(null, "Could not update plant image")
+            return null
+        }
+        return plantData
+    }
+
+    fun deletePlantImage(plant: PlantData, imageUrl: String) {
+        isLoading.value = true
+        withAuth { token ->
+            viewModelScope.launch {
+                val res = plantsRepository.deleteImage(token, plant.plantId!!, imageUrl)
+                if (res is Resource.Error) {
+                    handleException(res.exception, "Unable to update plant")
+                    isLoading.value = false
+                    return@launch
+                }
+                popupNotification.value = Event("Picture successfully deleted")
+                isLoading.value = false
+                refreshPosts()
+            }
+        }
+    }
+
     fun onUpdatePlant(
         originalPlant: PlantData,
-        newUris: List<Uri?>,
         newCommonName: String,
         newScientificName: String?,
-        newToxicity: String?
+        newToxicity: String?,
     ) {
         isLoading.value = true
         withAuth { token: String ->
             viewModelScope.launch(Dispatchers.Main) {
-                val originalImages = originalPlant.images
-                val resultUris = uploadImages(newUris)
-                val updatedUris = mutableListOf<String>()
-                if (originalImages != null) {
-                    for (i in resultUris.indices) {
-                        val currentResultUri = resultUris[i]
-                        if (currentResultUri != null) {
-                            updatedUris.add(currentResultUri.toString())
-                        } else if (i < originalImages.size) {
-                            updatedUris.add(originalImages[i])
-                        }
-                    }
-                } else {
-                    updatedUris.addAll(resultUris
-                        .filterNotNull()
-                        .map { uri -> uri.toString() }
-                        .filter { uri -> uri.isNotEmpty() }
-                        .toMutableList())
-                }
-                val updatedPlant = originalPlant
+                val updatedPlant = originalPlant.copy()
                 updatedPlant.commonName = newCommonName
                 updatedPlant.scientificName = newScientificName
                 updatedPlant.toxicity = newToxicity
-                updatedPlant.images = updatedUris
 
                 Log.i(TAG, updatedPlant.toString())
                 val res = plantsRepository.updatePlant(token, updatedPlant, originalPlant.plantId!!)
@@ -366,8 +401,55 @@ class NectarViewModel @Inject constructor(
 
     }
 
+    suspend fun deleteImage(plantId: String, uri: String?) {
+        if (uri.isNullOrEmpty()) return
+        withAuth { token ->
+            viewModelScope.launch {
+                isLoading.value = true
+                val res = fileRepository.deleteImage(token, plantId, uri)
+                if (res is Resource.Error) {
+                    handleException(
+                        res.data as Exception?,
+                        "Unable to delete plant, please try again"
+                    )
+                    isLoading.value = false
+                    return@launch
+                }
+            }
+        }
+    }
+
+    suspend fun uploadImageAsync(
+        token: String,
+        plantId: String,
+        imageFile: File
+    ): FileUploadResponse? {
+        val deferredResult = viewModelScope.async {
+            val res = fileRepository.uploadImage(token, plantId, imageFile)
+            if (res is Resource.Error) {
+                handleException(res.exception, "unable to upload image")
+                isLoading.value = false
+                return@async null
+            }
+            val imageUri = res.data?.imageUrl
+            val updatedPlant = res.data?.plant
+            if (imageUri == null || updatedPlant == null) {
+                handleException(res.exception, "unable to upload image")
+                isLoading.value = false
+                return@async null
+            }
+            return@async res.data
+        }
+        val response = deferredResult.await()
+        if (response == null) {
+            handleException(null, "Could not update plant image")
+            return null
+        }
+        return response
+    }
+
     fun onAddNewPlant(
-        uris: List<Uri>,
+        images: List<File>,
         commonName: String,
         scientificName: String?,
         toxicity: String?
@@ -375,29 +457,39 @@ class NectarViewModel @Inject constructor(
         withAuth { token: String ->
             viewModelScope.launch(Dispatchers.Main) {
                 isLoading.value = true
-                val uriList = uris.filter { uri -> uri.toString().isNotEmpty() }
-                val resultUris = uploadImages(uriList).filterNotNull()
 
                 val currentUid = auth.currentUser?.uid
-
                 if (currentUid == null) {
                     handleException(message = "Error: username unavailable. unable to create post")
                     onLogout()
                     isLoading.value = false
                     return@launch
                 }
-                /*
-                val searchTerms = commonName
-                    .split(" ", ".", ",", "?", "!", "#")
-                    .map { it.lowercase() }
-                    .filter { it.isNotEmpty() and !FILLER_WORDS.contains(it) }
-                 */
+
+                //upload images
+                val resultUris = mutableListOf<String>()
+                for (image in images) {
+                    val res = fileRepository.uploadImage(token, image)
+                    if (res is Resource.Error) {
+                        handleException(res.exception, "unable to create plant")
+                        isLoading.value = false
+                        return@launch
+                    }
+                    val imageUri = res.data?.imageUrl
+                    if (imageUri == null) {
+                        handleException(res.exception, "unable to create plant")
+                        isLoading.value = false
+                        return@launch
+                    }
+                    resultUris.add(imageUri)
+                }
+
                 val newPlant = PlantData(
                     commonName = commonName,
                     scientificName = scientificName,
                     toxicity = toxicity,
                     userId = currentUid,
-                    images = resultUris.map { uri -> uri.toString() }
+                    images = resultUris
 
                 )
                 Log.i(TAG, newPlant.toString())
@@ -414,35 +506,6 @@ class NectarViewModel @Inject constructor(
             }
         }
     }
-
-    private suspend fun uploadImageAsync(uri: Uri, storageRef: StorageReference): Uri {
-        val fileName = UUID.randomUUID()
-        val imageRef = storageRef.child("images/$fileName")
-        Log.i(TAG, uri.toString())
-        return imageRef
-            .putFile(uri)
-            .await()
-            .storage
-            .downloadUrl
-            .await()
-    }
-
-    private suspend fun uploadImages(uris: List<Uri?>): List<Uri?> {
-        isLoading.value = true
-        val resultUris = mutableListOf<Uri?>()
-        for (uri in uris) {
-            if (uri == null || uri.toString().isEmpty()) {
-                resultUris.add(null)
-            } else {
-                val storageRef = storage.reference
-                resultUris.add(uploadImageAsync(uri, storageRef))
-            }
-        }
-        Log.i(TAG, resultUris.toString())
-        isLoading.value = false
-        return resultUris
-    }
-
 
     fun onLogout() {
         auth.signOut()
@@ -476,7 +539,7 @@ class NectarViewModel @Inject constructor(
         }
     }
 
-    private fun handleException(e: Exception? = null, message: String = "") {
+    fun handleException(e: Exception? = null, message: String = "") {
         if (e != null) {
             Log.e(TAG, e.stackTraceToString())
         }
@@ -540,13 +603,18 @@ class NectarViewModel @Inject constructor(
         wasWatered: Boolean,
         wasFertilized: Boolean,
         notes: String?,
+        careDate: LocalDate?
     ) {
+        Log.i(TAG, careDate.toString())
+
         val careLogRequest = CareLogRequest(
             plantId = plantId,
             wasWatered = wasWatered,
             wasFertilized = wasFertilized,
-            notes = notes
+            notes = notes,
+            careDate = careDate.toString()
         )
+        Log.i(TAG, careLogRequest.toString())
         withAuth { token: String ->
             isLoading.value = true
             viewModelScope.launch(Dispatchers.Main) {
@@ -554,10 +622,7 @@ class NectarViewModel @Inject constructor(
                 val res = careLogRepository.createCareLogEntry(token, careLogRequest)
                 isLoading.value = false
                 if (res is Resource.Error) {
-                    handleException(
-                        res.exception,
-                        "Could not create care log entry, please try again"
-                    )
+                    handleException(res.exception, "Could not create care log entry, please try again")
                     return@launch
                 }
                 showMessage("Successfully added care log entry")
@@ -620,4 +685,11 @@ class NectarViewModel @Inject constructor(
     fun parseDate(dateString: String): LocalDate =
         LocalDate.parse(dateString, DateTimeFormatter.RFC_1123_DATE_TIME)
 
+    fun setValueInSharePrefs(key: String, value: String) {
+        val editor = sharedPreferences.edit()
+        editor.putString(key, value)
+        editor.apply()
+    }
+
+    fun getValueFromSharedPrefs(key: String): String? = sharedPreferences.getString(key, null)
 }

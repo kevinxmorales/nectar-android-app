@@ -20,10 +20,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.morales.nectar.R
-import com.morales.nectar.composables.CommonDivider
-import com.morales.nectar.composables.NectarDatePicker
-import com.morales.nectar.composables.NectarSubmitButton
-import com.morales.nectar.composables.NectarTextField
+import com.morales.nectar.android.composables.CommonDivider
+import com.morales.nectar.android.composables.NectarDatePicker
+import com.morales.nectar.android.composables.NectarSubmitButton
+import com.morales.nectar.android.composables.NectarTextField
 import java.time.LocalDate
 
 @Composable

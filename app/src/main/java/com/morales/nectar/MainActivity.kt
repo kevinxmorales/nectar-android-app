@@ -8,9 +8,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.morales.nectar.composables.NotificationMessage
+import com.morales.nectar.android.composables.NotificationMessage
 import com.morales.nectar.data.models.CareLogParcel
 import com.morales.nectar.data.models.PlantData
+import com.morales.nectar.navigation.navigateTo
 import com.morales.nectar.screens.NectarViewModel
 import com.morales.nectar.screens.auth.LoginScreen
 import com.morales.nectar.screens.auth.ProfileScreen
@@ -129,5 +130,8 @@ fun NectarApp() {
         composable(DestinationScreen.CreateNewPlant.route) {
             CreateNewPlantScreen(navController = navController, vm = vm)
         }
+    }
+    if (!vm.signedIn.value) {
+        navigateTo(navController, DestinationScreen.Login)
     }
 }
